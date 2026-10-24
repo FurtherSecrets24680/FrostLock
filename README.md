@@ -3,8 +3,10 @@
 A modern Windows input-freeze / screen-lock utility. It takes the keyboard and mouse away for a
 set period (or until you release it), shows a proper lock screen, and always gives you a way back.
 
-Built as a clean successor to **KeyFreeze 1.0.1.0**, the tiny ClickOnce/WinForms app that called
-`BlockInput(true)` and never called `BlockInput(false)` — leaving Ctrl+Alt+Del as the only exit.
+Inspired by **[KeyFreeze](https://keyfreeze.com/)** — a tiny Windows utility that blocks the
+keyboard and mouse without locking the screen. FrostLock keeps that core idea (no keyboard, no
+mouse, nothing to click) and rebuilds it as a modern app: a real lock screen with a countdown, and
+several independent ways back out, so Ctrl+Alt+Del is never the only option.
 
 - WPF, `net8.0-windows`, built on **[WPF-UI](https://github.com/lepoco/wpfui)** (Fluent/WinUI controls).
 - Follows the Windows 11 system theme, accent colour and Mica backdrop, so it looks like a stock
@@ -172,4 +174,5 @@ FrostLock/
 - **A non-elevated hook cannot cover elevated applications.** If input directed at an elevated
   foreground window must also be frozen, use Hard mode (which runs elevated).
 - If you pick Hard mode, choose "until I unlock", *and* disable the safety cap, `Ctrl+Alt+Del` is
-  your only exit — exactly like the original KeyFreeze. The default cap exists to prevent that.
+  your only exit — exactly like [KeyFreeze](https://keyfreeze.com/). The default cap exists to
+  prevent that.
