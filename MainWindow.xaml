@@ -1,0 +1,368 @@
+<ui:FluentWindow x:Class="FrostLock.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="FrostLock"
+                 Width="470"
+                 Height="730"
+                 WindowStartupLocation="CenterScreen"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round"
+                 ExtendsContentIntoTitleBar="True"
+                 ResizeMode="NoResize"
+                 FontFamily="Segoe UI Variable Text, Segoe UI"
+                 FontSize="14"
+                 TextOptions.TextFormattingMode="Ideal">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar x:Name="AppTitleBar" Grid.Row="0" Title="FrostLock"
+                     ShowMinimize="True" ShowMaximize="False" />
+
+        <ScrollViewer Grid.Row="1" Padding="24,2,24,20"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel>
+                        <TextBlock Text="FrostLock" FontSize="28" FontWeight="SemiBold" />
+                        <TextBlock Text="Take the keyboard and mouse away for a while."
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Margin="0,2,0,0" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                VerticalAlignment="Top" Margin="12,4,0,0">
+                        <ui:Button x:Name="BtnAbout"
+                                   Width="36" Height="36" Padding="0"
+                                   ToolTip="About FrostLock"
+                                   AutomationProperties.Name="About FrostLock"
+                                   Click="About_Click">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="Info24" FontSize="16" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+
+                        <ui:Button x:Name="BtnSettings"
+                                   Width="36" Height="36" Padding="0"
+                                   Margin="6,0,0,0"
+                                   ToolTip="Settings"
+                                   AutomationProperties.Name="Settings"
+                                   Click="Settings_Click">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="Settings24" FontSize="16" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Current state -->
+                <Border Style="{StaticResource CardPanel}" Margin="0,16,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:SymbolIcon x:Name="StatusIcon" Symbol="LockOpen24"
+                                       FontSize="20" Margin="0,0,12,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="StatusTitle" Text="Ready" FontSize="18" FontWeight="SemiBold" />
+                            <TextBlock x:Name="StatusDetail" Style="{StaticResource RowDescription}"
+                                       Margin="0,2,0,0" Text="Keyboard and mouse are yours." />
+                        </StackPanel>
+
+                        <TextBlock x:Name="StatusTime" Grid.Column="2" Text=""
+                                   FontSize="18" FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </Grid>
+                </Border>
+
+                <ui:Button x:Name="BtnFreeze"
+                           Appearance="Primary"
+                           Height="40"
+                           Margin="0,12,0,0"
+                           HorizontalAlignment="Stretch"
+                           HorizontalContentAlignment="Center"
+                           Content="Freeze input now"
+                           Click="Freeze_Click">
+                    <ui:Button.Icon>
+                        <ui:SymbolIcon Symbol="LockClosed24" FontSize="16" />
+                    </ui:Button.Icon>
+                </ui:Button>
+
+                <StackPanel Orientation="Horizontal" Margin="2,18,0,8">
+                    <ui:SymbolIcon Symbol="Timer24" Style="{StaticResource SectionIcon}" />
+                    <TextBlock Text="Freeze" Style="{StaticResource SectionHeader}" Margin="0" />
+                </StackPanel>
+
+                <Border Style="{StaticResource CardPanel}">
+                    <StackPanel>
+                        <Grid Margin="0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="210" />
+                            </Grid.ColumnDefinitions>
+                            <Grid VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Symbol="ShieldCheckmark24" Style="{StaticResource RowIcon}" />
+                                <TextBlock Grid.Column="1" Text="Mode" Style="{StaticResource RowTitle}" />
+                            </Grid>
+                            <ComboBox x:Name="ModeBox" Grid.Column="1" HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Center" VerticalContentAlignment="Center"
+                                      SelectionChanged="Mode_SelectionChanged">
+                                <ComboBoxItem Tag="Gentle">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="LockOpen24" FontSize="16" Margin="0,0,8,0"
+                                                       VerticalAlignment="Center" />
+                                        <TextBlock Text="Gentle" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </ComboBoxItem>
+                                <ComboBoxItem Tag="Strict">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="ShieldCheckmark24" FontSize="16" Margin="0,0,8,0"
+                                                       VerticalAlignment="Center" />
+                                        <TextBlock Text="Strict" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </ComboBoxItem>
+                                <ComboBoxItem Tag="Pin">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Password24" FontSize="16" Margin="0,0,8,0"
+                                                       VerticalAlignment="Center" />
+                                        <TextBlock Text="PIN lock" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </ComboBoxItem>
+                                <ComboBoxItem Tag="Hard">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="LockClosed24" FontSize="16" Margin="0,0,8,0"
+                                                       VerticalAlignment="Center" />
+                                        <TextBlock Text="Hard (administrator)" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </ComboBoxItem>
+                            </ComboBox>
+                        </Grid>
+
+                        <TextBlock x:Name="ModeDescription" Style="{StaticResource RowDescription}"
+                                   Margin="28,0,0,10"
+                                   Text="Full-screen lock screen with the system keys suppressed." />
+
+                        <Border Style="{StaticResource Divider}" />
+
+                        <Grid Margin="0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="190" />
+                            </Grid.ColumnDefinitions>
+                            <Grid VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Symbol="Timer24" Style="{StaticResource RowIcon}" />
+                                <TextBlock Grid.Column="1" Text="Duration" Style="{StaticResource RowTitle}" />
+                            </Grid>
+                            <ComboBox x:Name="DurationBox" Grid.Column="1" HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Center" VerticalContentAlignment="Center"
+                                      SelectionChanged="Duration_SelectionChanged">
+                                <ComboBoxItem Content="30 seconds" Tag="30" />
+                                <ComboBoxItem Content="1 minute" Tag="60" />
+                                <ComboBoxItem Content="5 minutes" Tag="300" />
+                                <ComboBoxItem Content="15 minutes" Tag="900" />
+                                <ComboBoxItem Content="Until I unlock" Tag="0" />
+                            </ComboBox>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <ui:InfoBar x:Name="AdminNotice"
+                            Severity="Warning"
+                            IsClosable="False"
+                            IsOpen="False"
+                            Title="Administrator rights required"
+                            Message="Hard mode freezes input at the OS level. FrostLock will ask to restart elevated."
+                            Margin="0,12,0,0" />
+
+                <ui:InfoBar x:Name="PinNotice"
+                            Severity="Warning"
+                            IsClosable="False"
+                            IsOpen="False"
+                            Title="No PIN set"
+                            Message="Set a PIN in Settings before using PIN lock."
+                            Margin="0,12,0,0" />
+
+                <StackPanel Orientation="Horizontal" Margin="2,18,0,8">
+                    <ui:SymbolIcon Symbol="Settings24" Style="{StaticResource SectionIcon}" />
+                    <TextBlock Text="Options" Style="{StaticResource SectionHeader}" Margin="0" />
+                </StackPanel>
+
+                <Border Style="{StaticResource CardPanel}">
+                    <StackPanel>
+                        <Grid Margin="0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Symbol="Window24" Style="{StaticResource RowIcon}" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Suppress system keys" Style="{StaticResource RowTitle}" />
+                                    <TextBlock Text="Win, Alt+Tab, Alt+F4, Ctrl+Esc"
+                                               Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
+                                </StackPanel>
+                            </Grid>
+                            <ui:ToggleSwitch x:Name="ChkSystemKeys" Grid.Column="1" VerticalAlignment="Center" />
+                        </Grid>
+
+                        <StackPanel x:Name="StrictOptions" Visibility="Collapsed">
+                            <Border Style="{StaticResource Divider}" />
+
+                            <Grid Margin="0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:SymbolIcon Symbol="Keyboard24" Style="{StaticResource RowIcon}" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Block every keystroke" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Text="Strict mode only"
+                                                   Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                                <ui:ToggleSwitch x:Name="ChkBlockAllKeys" Grid.Column="1" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <Border Style="{StaticResource Divider}" />
+
+                            <Grid Margin="0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:SymbolIcon Symbol="Cursor24" Style="{StaticResource RowIcon}" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Block the mouse" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Text="Strict mode only"
+                                                   Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                                <ui:ToggleSwitch x:Name="ChkBlockMouse" Grid.Column="1" VerticalAlignment="Center" />
+                            </Grid>
+                        </StackPanel>
+
+                        <Border Style="{StaticResource Divider}" />
+
+                        <Grid Margin="0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Symbol="Desktop24" Style="{StaticResource RowIcon}" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Keep the display awake" Style="{StaticResource RowTitle}" />
+                                    <TextBlock Text="Stops the screen from sleeping while frozen"
+                                               Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
+                                </StackPanel>
+                            </Grid>
+                            <ui:ToggleSwitch x:Name="ChkKeepAwake" Grid.Column="1" VerticalAlignment="Center" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Session details -->
+                <Border Style="{StaticResource CardPanel}" Margin="0,16,0,0">
+                    <StackPanel>
+                        <Grid Margin="0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="92" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Symbol="Keyboard24" Style="{StaticResource RowIcon}" />
+                            <TextBlock Grid.Column="1" Text="Hotkeys"
+                                       Style="{StaticResource RowDescription}" VerticalAlignment="Center" />
+                            <TextBlock x:Name="TxtHotkeys" Grid.Column="2"
+                                       Text="Start Ctrl+Alt+L · Unlock Ctrl+Alt+U"
+                                       Style="{StaticResource RowDescription}"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+
+                        <Border Style="{StaticResource Divider}" />
+
+                        <Grid Margin="0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="92" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Symbol="Clock24" Style="{StaticResource RowIcon}" />
+                            <TextBlock Grid.Column="1" Text="Statistics"
+                                       Style="{StaticResource RowDescription}" VerticalAlignment="Center" />
+                            <TextBlock x:Name="TxtStats" Grid.Column="2"
+                                       Text="No freezes yet"
+                                       Style="{StaticResource RowDescription}"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+
+                        <Border Style="{StaticResource Divider}" />
+
+                        <Grid Margin="0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="92" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Symbol="Person24" Style="{StaticResource RowIcon}" />
+                            <TextBlock Grid.Column="1" Text="Session"
+                                       Style="{StaticResource RowDescription}" VerticalAlignment="Center" />
+                            <TextBlock x:Name="TxtRole" Grid.Column="2"
+                                       Text="Standard user"
+                                       Style="{StaticResource RowDescription}"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</ui:FluentWindow>

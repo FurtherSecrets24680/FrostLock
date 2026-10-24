@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">FrostLock app icon</title><desc id="desc">FrostLock Windows-style icon.</desc>
+  
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#55c8ff"/>
+    <stop offset="0.46" stop-color="#247ce4"/>
+    <stop offset="1" stop-color="#183da9"/>
+  </linearGradient>
+  <linearGradient id="bgDeep" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#288de8"/>
+    <stop offset="0.52" stop-color="#1761ca"/>
+    <stop offset="1" stop-color="#102b75"/>
+  </linearGradient>
+  <linearGradient id="ice" x1="0" y1="0" x2="0.8" y2="1">
+    <stop offset="0" stop-color="#ffffff"/>
+    <stop offset="0.45" stop-color="#edf7ff"/>
+    <stop offset="1" stop-color="#b4d9ff"/>
+  </linearGradient>
+  <linearGradient id="iceSide" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#e9f7ff"/>
+    <stop offset="1" stop-color="#8cbfff"/>
+  </linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="0.85" y2="1">
+    <stop offset="0" stop-color="#65bfff" stop-opacity=".82"/>
+    <stop offset="0.52" stop-color="#367dd8" stop-opacity=".9"/>
+    <stop offset="1" stop-color="#183b91" stop-opacity=".98"/>
+  </linearGradient>
+  <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#122d5e"/>
+    <stop offset="1" stop-color="#1c4c96"/>
+  </linearGradient>
+  <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#e6f4ff"/>
+    <stop offset="0.5" stop-color="#b9d8f5"/>
+    <stop offset="1" stop-color="#7fa7e9"/>
+  </linearGradient>
+  <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#9ceaff"/>
+    <stop offset="1" stop-color="#1bb6ff"/>
+  </linearGradient>
+  <linearGradient id="green" x1="0" y1="0" x2="0.8" y2="1">
+    <stop offset="0" stop-color="#b9ff63"/>
+    <stop offset="1" stop-color="#4ddd19"/>
+  </linearGradient>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+    <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#00142d" flood-opacity=".3"/>
+  </filter>
+  <filter id="softShadow" x="-35%" y="-35%" width="170%" height="180%">
+    <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#00142d" flood-opacity=".2"/>
+  </filter>
+  <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+    <feGaussianBlur stdDeviation="2.2" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+</defs>
+  
+<g filter="url(#shadow)">
+  <rect x="25" y="24" width="206" height="208" rx="31" fill="url(#bg)" stroke="#9addff" stroke-width="2.4"/>
+  <path d="M38 55 Q43 35 66 31 H128 L29 132 V86 Q29 66 38 55Z" fill="#ffffff" opacity=".12"/>
+  <path d="M34 177 L177 31 H211 Q225 31 228 51 L74 226 H57 Q37 223 34 204Z" fill="#ffffff" opacity=".07"/>
+  <rect x="27" y="26" width="202" height="204" rx="29" fill="none" stroke="#eafaff" stroke-opacity=".32" stroke-width="1.5"/>
+</g>
+<g filter="url(#softShadow)">
+  <path d="M89 117 V94 A39 39 0 0 1 167 94 V117" fill="none" stroke="url(#ice)" stroke-width="17" stroke-linecap="round"/>
+  <rect x="72" y="108" width="112" height="91" rx="17" fill="url(#ice)" stroke="#f4fbff" stroke-width="2"/>
+  <g transform="translate(128 153) scale(0.75)" fill="none" stroke="#1a5fbd" stroke-width="6.6" stroke-linecap="round" stroke-linejoin="round" opacity="1">
+      <path d="M0 0 V-33 M0 -21 L-8 -29 M0 -21 L8 -29"/>
+      <path d="M0 0 V-33 M0 -21 L-8 -29 M0 -21 L8 -29" transform="rotate(60)"/>
+      <path d="M0 0 V-33 M0 -21 L-8 -29 M0 -21 L8 -29" transform="rotate(120)"/>
+      <path d="M0 0 V-33 M0 -21 L-8 -29 M0 -21 L8 -29" transform="rotate(180)"/>
+      <path d="M0 0 V-33 M0 -21 L-8 -29 M0 -21 L8 -29" transform="rotate(240)"/>
+      <path d="M0 0 V-33 M0 -21 L-8 -29 M0 -21 L8 -29" transform="rotate(300)"/>
+    </g>
+</g>
+</svg>
