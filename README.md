@@ -1,11 +1,12 @@
+<p align="center">
+  <img src="Assets/frostlock.svg" alt="FrostLock" width="128" height="128">
+</p>
+
 # FrostLock
 
-FrostLock takes the keyboard and mouse away for a set period, covers each display with a lock screen, and gives you several ways to end the freeze.
+FrostLock takes the keyboard and mouse away for a set period, covers each display with a lock screen, and gives you several ways to end the freeze. This software is inspired by [KeyFreeze](https://keyfreeze.com/).
 
-The app is inspired by [KeyFreeze](https://keyfreeze.com/), a small utility that blocks input without locking the screen. FrostLock rebuilds that idea as a Windows app with a countdown, a PIN, and more than one route out of a freeze.
-
-- WPF on `net8.0-windows`, built with **[WPF-UI](https://github.com/lepoco/wpfui)**.
-- Uses the Windows 11 system theme, accent colour and Mica backdrop.
+- WPF on `net8.0-windows`, using the Windows 11 system theme, accent colour and Mica backdrop.
 - Four freeze modes, from a friendly overlay to an OS-level input freeze.
 - A lock screen on each display, scaled for its DPI.
 - Several release paths, so a stuck overlay is recoverable.
@@ -143,3 +144,9 @@ FrostLock/
 - **PIN mode has no reset from inside the lock.** A forgotten PIN means ending FrostLock through Task Manager, or running `FrostLock.exe --panic`.
 - **A non-elevated hook cannot cover elevated apps.** Send that input to Hard mode, which runs elevated.
 - **Hard mode, "until I unlock", and no safety cap** leaves `Ctrl+Alt+Del` as the only exit, as with [KeyFreeze](https://keyfreeze.com/).
+
+## Credits & inspiration
+
+FrostLock is inspired by [KeyFreeze](https://keyfreeze.com/), a small utility that blocks input without locking the screen. FrostLock rebuilds that idea as a Windows app with a countdown, a PIN, and more than one route out of a freeze.
+
+Built with [WPF-UI](https://github.com/lepoco/wpfui) on .NET 8.

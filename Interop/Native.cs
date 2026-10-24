@@ -5,12 +5,12 @@ namespace FrostLock.Interop;
 /// <summary>Thin P/Invoke surface. Nothing here executes target code; it only calls documented Win32 APIs.</summary>
 internal static class Native
 {
-    // ── Input freezing ───────────────────────────────────────────────────────────
+    // Input freezing
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool BlockInput([MarshalAs(UnmanagedType.Bool)] bool fBlockIt);
 
-    // ── Low-level hooks ──────────────────────────────────────────────────────────
+    // Low-level hooks
     internal const int WH_KEYBOARD_LL = 13;
     internal const int WH_MOUSE_LL = 14;
 
@@ -61,7 +61,7 @@ internal static class Native
         public IntPtr dwExtraInfo;
     }
 
-    // ── Global hotkeys ───────────────────────────────────────────────────────────
+    // Global hotkeys
     internal const int WM_HOTKEY = 0x0312;
     internal const uint MOD_ALT = 0x0001;
     internal const uint MOD_CONTROL = 0x0002;
@@ -77,7 +77,7 @@ internal static class Native
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
-    // ── Window placement / focus ─────────────────────────────────────────────────
+    // Window placement / focus
     internal static readonly IntPtr HWND_TOPMOST = new(-1);
     internal const uint SWP_SHOWWINDOW = 0x0040;
     internal const uint SWP_NOACTIVATE = 0x0010;
@@ -90,7 +90,7 @@ internal static class Native
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool SetForegroundWindow(IntPtr hWnd);
 
-    // ── Power / idle ─────────────────────────────────────────────────────────────
+    // Power / idle
     [DllImport("kernel32.dll", SetLastError = true)]
     internal static extern uint SetThreadExecutionState(uint esFlags);
 
@@ -98,14 +98,14 @@ internal static class Native
     internal const uint ES_SYSTEM_REQUIRED = 0x00000001;
     internal const uint ES_DISPLAY_REQUIRED = 0x00000002;
 
-    // ── Rounded window corners (Windows 11) ──────────────────────────────────────
+    // Rounded window corners (Windows 11)
     internal const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     internal const int DWMWCP_ROUND = 2;
 
     [DllImport("dwmapi.dll")]
     internal static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
-    // ── Audio feedback ───────────────────────────────────────────────────────────
+    // Audio feedback
     internal const uint MB_ICONASTERISK = 0x00000040;
     internal const uint MB_ICONEXCLAMATION = 0x00000030;
 

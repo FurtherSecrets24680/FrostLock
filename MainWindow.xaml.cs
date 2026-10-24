@@ -33,7 +33,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _controller = controller;
     }
 
-    // ── Lifecycle ────────────────────────────────────────────────────────────────
+    // Lifecycle
 
     public void Initialize(bool startHidden)
     {
@@ -110,7 +110,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _hotkeys.Dispose();
     }
 
-    // ── Freeze control ───────────────────────────────────────────────────────────
+    // Freeze control
 
     /// <summary>Set from the command line; applies to the next freeze, then clears.</summary>
     public FreezeMode? ModeOverride { get; set; }
@@ -191,7 +191,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         System.Windows.Application.Current.Shutdown();
     }
 
-    // ── Controller events ────────────────────────────────────────────────────────
+    // Controller events
 
     private void OnFreezeStarted(object? sender, FreezeStartedEventArgs e)
     {
@@ -237,7 +237,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _tray?.SetTooltip($"FrostLock — {state.ModeLabel}: {StatusDetail.Text}");
     }
 
-    // ── UI wiring ────────────────────────────────────────────────────────────────
+    // UI wiring
 
     private void WireOptionToggles()
     {
@@ -400,7 +400,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         return $"{(int)value.TotalSeconds} sec";
     }
 
-    // ── Settings plumbing ────────────────────────────────────────────────────────
+    // Settings plumbing
 
     /// <summary>Persists settings and re-applies side effects. Returns a hotkey error, if any.</summary>
     private string? SaveSettings()
@@ -457,7 +457,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         window.Show();
     }
 
-    // ── Window commands ──────────────────────────────────────────────────────────
+    // Window commands
 
     private void Freeze_Click(object sender, RoutedEventArgs e) => StartFreeze();
 

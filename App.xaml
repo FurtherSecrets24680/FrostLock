@@ -10,12 +10,6 @@
                 <ui:ControlsDictionary />
             </ResourceDictionary.MergedDictionaries>
 
-            <!--
-                A deliberately small layout vocabulary built on the Windows design tokens
-                shipped by WPF-UI. No custom palette, no custom control templates: everything
-                visible is a stock Fluent control or a WinUI colour token.
-            -->
-
             <Style x:Key="SectionHeader" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="14" />
                 <Setter Property="FontWeight" Value="SemiBold" />

@@ -40,10 +40,6 @@ public sealed class FreezeEndedEventArgs : EventArgs
     public TimeSpan Elapsed { get; }
 }
 
-/// <summary>
-/// Owns the whole freeze lifecycle: arming countdown → engaging the selected blocker →
-/// overlay management → timed / safety release → teardown and stats.
-/// </summary>
 public sealed class FreezeController : IDisposable
 {
     private readonly AppSettings _settings;
