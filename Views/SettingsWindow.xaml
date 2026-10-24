@@ -166,6 +166,28 @@
                             </Grid>
                             <ui:ToggleSwitch x:Name="ChkShowCountdown" Grid.Column="1" VerticalAlignment="Center" />
                         </Grid>
+
+                        <Border Style="{StaticResource Divider}" />
+
+                        <Grid Margin="0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Symbol="Speaker224" Style="{StaticResource RowIcon}" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Play a sound" Style="{StaticResource RowTitle}" />
+                                    <TextBlock Text="Beep when a freeze starts and when it is released."
+                                               Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
+                                </StackPanel>
+                            </Grid>
+                            <ui:ToggleSwitch x:Name="ChkPlaySound" Grid.Column="1" VerticalAlignment="Center" />
+                        </Grid>
                     </StackPanel>
                 </Border>
 

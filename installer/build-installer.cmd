@@ -11,11 +11,18 @@ if not exist "%ISCC%" (
     exit /b 1
 )
 
-echo Publishing FrostLock (self-contained win-x64, single file)...
-dotnet publish "..\FrostLock.csproj" -c Release -r win-x64 --self-contained true ^
-    -p:PublishSingleFile=true ^
-    -p:IncludeNativeLibrariesForSelfExtract=true ^
-    -p:EnableCompressionInSingleFile=true ^
+rem Start from a clean folder so a previous self-contained publish cannot leak its
+rem runtime DLLs into the installer.
+if exist "publish" rd /s /q "publish"
+
+rem Framework-dependent publish: the app itself is only a few MB and the installer
+rem asks Setup to pull in the .NET 8 Desktop Runtime when the machine lacks it.
+rem For a fully offline, self-contained installer instead, swap the publish line for:
+rem   dotnet publish "..\FrostLock.csproj" -c Release -r win-x64 --self-contained true ^
+rem       -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true ^
+rem       -p:EnableCompressionInSingleFile=true -o "publish"
+echo Publishing FrostLock (framework-dependent win-x64)...
+dotnet publish "..\FrostLock.csproj" -c Release -r win-x64 --self-contained false ^
     -o "publish"
 if errorlevel 1 exit /b 1
 

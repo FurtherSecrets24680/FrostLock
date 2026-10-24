@@ -6,6 +6,9 @@ obj/
 installer/publish/
 installer/Output/
 
+# Local notes and drafts (release text, etc.)
+docs/
+
 # IDE
 .vs/
 .idea/

@@ -36,6 +36,7 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         ChkCloseToTray.IsChecked = _settings.CloseToTray;
         ChkKeepAwake.IsChecked = _settings.KeepDisplayAwake;
         ChkShowCountdown.IsChecked = _settings.ShowCountdownOnOverlay;
+        ChkPlaySound.IsChecked = _settings.PlaySound;
 
         ArmBox.Value = _settings.ArmSeconds;
         SafetyBox.Value = _settings.SafetyMaxSeconds / 60;
@@ -159,9 +160,23 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         BindToggle(ChkCloseToTray, v => _settings.CloseToTray = v);
         BindToggle(ChkKeepAwake, v => _settings.KeepDisplayAwake = v);
         BindToggle(ChkShowCountdown, v => _settings.ShowCountdownOnOverlay = v);
+        BindToggle(ChkPlaySound, v => _settings.PlaySound = v);
 
+        // A NumberBox only moves typed text into Value on Enter, a spin click or focus
+        // loss, so save on ValueChanged too. Enter is the usual way to set a number and
+        // it fires ValueChanged but not LostFocus.
+        ArmBox.ValueChanged += (_, _) => CommitNumbers();
+        SafetyBox.ValueChanged += (_, _) => CommitNumbers();
         ArmBox.LostFocus += (_, _) => CommitNumbers();
         SafetyBox.LostFocus += (_, _) => CommitNumbers();
+
+        // Dropping focus makes the boxes commit any text that was typed but never
+        // confirmed, so a value set just before closing still sticks.
+        Closing += (_, _) =>
+        {
+            Keyboard.ClearFocus();
+            CommitNumbers();
+        };
 
         PinNewBox.KeyDown += OnPinKey;
         PinConfirmBox.KeyDown += OnPinKey;
@@ -170,7 +185,9 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
 
         PreviewKeyDown += (_, e) =>
         {
-            if (e.Key == Key.Escape) Close();
+            // Esc closes the window, except while a hotkey field has focus, where the help
+            // text promises it only abandons the recording.
+            if (e.Key == Key.Escape && !IsHotkeyFieldFocused()) Close();
         };
 
         // A freshly shown settings page should always start at the top, whatever element
@@ -179,6 +196,11 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
             new Action(() => ContentScroll.ScrollToTop()),
             System.Windows.Threading.DispatcherPriority.Loaded);
     }
+
+    // True while one of the hotkey capture fields owns the keyboard focus.
+    private bool IsHotkeyFieldFocused()
+        => ReferenceEquals(Keyboard.FocusedElement, TxtUnlockHotkey)
+           || ReferenceEquals(Keyboard.FocusedElement, TxtStartHotkey);
 
     private void BindToggle(ToggleSwitch toggle, Action<bool> setter)
     {

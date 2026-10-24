@@ -56,7 +56,6 @@ public sealed class AppSettings
     public bool BlockSystemKeys { get; set; } = true;
 
     public bool ShowCountdownOnOverlay { get; set; } = true;
-    public bool DimSecondaries { get; set; } = true;
 
     public string UnlockHotkey { get; set; } = "Ctrl+Alt+U";
     public string StartHotkey { get; set; } = "Ctrl+Alt+L";
@@ -121,7 +120,6 @@ public sealed class AppSettings
         BlockMouse = other.BlockMouse;
         BlockSystemKeys = other.BlockSystemKeys;
         ShowCountdownOnOverlay = other.ShowCountdownOnOverlay;
-        DimSecondaries = other.DimSecondaries;
         UnlockHotkey = other.UnlockHotkey;
         StartHotkey = other.StartHotkey;
         SafetyMaxSeconds = other.SafetyMaxSeconds;

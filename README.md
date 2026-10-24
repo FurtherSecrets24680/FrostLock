@@ -13,6 +13,12 @@ FrostLock takes the keyboard and mouse away for a set period, covers each displa
 
 ---
 
+## Requirements
+
+- **To use FrostLock:** 64-bit Windows 10 or 11. The app itself needs the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0); if it is missing, Setup offers to download and install it once (about 56 MB, needs an internet connection). If it is already present, nothing is downloaded.
+- **To build from source:** the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) (or newer) on Windows.
+- On ARM64 Windows, FrostLock runs through x64 emulation.
+
 ## Modes
 
 | Mode       | What it does                                                                                                                                                 | Admin?  | How you get out                     |
@@ -99,13 +105,13 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 ## Installer
 
-`installer\build-installer.cmd` publishes a self-contained win-x64 single file and wraps it in an Inno Setup 6 installer.
+`installer\build-installer.cmd` publishes a framework-dependent win-x64 app and wraps it in an Inno Setup 6 installer.
 
 ```powershell
 .\installer\build-installer.cmd
 ```
 
-The result is `installer\Output\FrostLock-Setup-1.0.0.exe`, about 60 MB, with no .NET runtime needed on the target machine. It installs per user to `%LocalAppData%\Programs\FrostLock` without a UAC prompt; the install-mode page can switch to an all-users install. Setup adds a Start Menu shortcut, an optional desktop shortcut, an Apps & features entry and an uninstaller, and asks you to close a
+The result is `installer\Output\FrostLock-Setup-1.0.0.exe`, about 4 MB. Setup checks for the .NET 8 Desktop Runtime and, when it is missing, offers to download and install it from Microsoft (about 56 MB). It installs per user to `%LocalAppData%\Programs\FrostLock` without a UAC prompt; the install-mode page can switch to an all-users install. Setup adds a Start Menu shortcut, an optional desktop shortcut, an Apps & features entry and an uninstaller, and asks you to close a
 running FrostLock first. Uninstalling keeps `%AppData%\FrostLock\settings.json`.
 
 Bump `<Version>` in `FrostLock.csproj` and `MyAppVersion` in `installer\FrostLock.iss` together.
