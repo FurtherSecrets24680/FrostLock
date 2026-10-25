@@ -32,6 +32,27 @@ public enum FreezeEndReason
     Shutdown
 }
 
+/// <summary>How the lock screen covers the desktop while a freeze is active.</summary>
+public enum LockScreenStyle
+{
+    /// <summary>An opaque, full-screen cover on every chosen display.</summary>
+    Solid,
+
+    /// <summary>A see-through dark veil: the desktop stays visible but dimmed.</summary>
+    Dim,
+
+    /// <summary>No cover at all. Input is blocked, but nothing is drawn.</summary>
+    None
+}
+
+/// <summary>Light or dark appearance. System follows Windows.</summary>
+public enum AppTheme
+{
+    System,
+    Light,
+    Dark
+}
+
 /// <summary>User preferences, persisted as JSON under %AppData%\FrostLock\settings.json.</summary>
 public sealed class AppSettings
 {
@@ -56,6 +77,24 @@ public sealed class AppSettings
     public bool BlockSystemKeys { get; set; } = true;
 
     public bool ShowCountdownOnOverlay { get; set; } = true;
+
+    /// <summary>Solid cover, see-through dim, or no lock screen at all.</summary>
+    public LockScreenStyle LockScreenStyle { get; set; } = LockScreenStyle.Solid;
+
+    /// <summary>True: a lock screen on every display. False: the primary display only.</summary>
+    public bool LockScreenOnAllDisplays { get; set; } = true;
+
+    /// <summary>Optional line shown on the lock screen, under the hint. Empty hides it.</summary>
+    public string LockScreenMessage { get; set; } = string.Empty;
+
+    /// <summary>Show a wall clock and, for timed freezes, the projected unlock time.</summary>
+    public bool ShowClockOnOverlay { get; set; } = true;
+
+    /// <summary>Light, dark, or follow the Windows theme.</summary>
+    public AppTheme Theme { get; set; } = AppTheme.System;
+
+    /// <summary>Quietly look for a newer release when the app starts.</summary>
+    public bool CheckForUpdatesOnStartup { get; set; } = true;
 
     public string UnlockHotkey { get; set; } = "Ctrl+Alt+U";
     public string StartHotkey { get; set; } = "Ctrl+Alt+L";
@@ -120,6 +159,12 @@ public sealed class AppSettings
         BlockMouse = other.BlockMouse;
         BlockSystemKeys = other.BlockSystemKeys;
         ShowCountdownOnOverlay = other.ShowCountdownOnOverlay;
+        LockScreenStyle = other.LockScreenStyle;
+        LockScreenOnAllDisplays = other.LockScreenOnAllDisplays;
+        LockScreenMessage = other.LockScreenMessage;
+        ShowClockOnOverlay = other.ShowClockOnOverlay;
+        Theme = other.Theme;
+        CheckForUpdatesOnStartup = other.CheckForUpdatesOnStartup;
         UnlockHotkey = other.UnlockHotkey;
         StartHotkey = other.StartHotkey;
         SafetyMaxSeconds = other.SafetyMaxSeconds;

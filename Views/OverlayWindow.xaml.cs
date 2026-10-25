@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
 using FrostLock.Interop;
 using FrostLock.Models;
 
@@ -17,6 +18,7 @@ public partial class OverlayWindow : Window
     private readonly Func<string, bool>? _verifyPin;
     private readonly bool _closeRequestsUnlock;
     private bool _pinFocused;
+    private TimeSpan _pinCooldown;
 
     /// <summary>Set by the controller right before it closes the window.</summary>
     public bool AllowClose { get; set; }
@@ -25,7 +27,8 @@ public partial class OverlayWindow : Window
         System.Windows.Forms.Screen screen,
         Action onUnlock,
         Func<string, bool>? verifyPin = null,
-        bool closeRequestsUnlock = true)
+        bool closeRequestsUnlock = true,
+        LockScreenStyle style = LockScreenStyle.Solid)
     {
         InitializeComponent();
 
@@ -33,6 +36,8 @@ public partial class OverlayWindow : Window
         _onUnlock = onUnlock;
         _verifyPin = verifyPin;
         _closeRequestsUnlock = closeRequestsUnlock;
+
+        ApplyStyle(style);
 
         PinBox.KeyDown += (_, e) =>
         {
@@ -44,6 +49,18 @@ public partial class OverlayWindow : Window
         };
 
         Loaded += (_, _) => PositionToScreen();
+    }
+
+    /// <summary>
+    /// The see-through style needs a layered window, so this runs before the window is
+    /// shown: AllowsTransparency can only change while no handle exists yet.
+    /// </summary>
+    private void ApplyStyle(LockScreenStyle style)
+    {
+        if (style != LockScreenStyle.Dim) return;
+
+        AllowsTransparency = true;
+        Background = new SolidColorBrush(Color.FromArgb(0xCC, 0x1C, 0x1C, 0x1C));
     }
 
     /// <summary>Sizes and pins the overlay to its monitor in physical pixels (DPI-safe).</summary>
@@ -85,6 +102,19 @@ public partial class OverlayWindow : Window
 
         HintText.Text = state.UnlockHint;
 
+        MessageText.Text = state.Message;
+        MessageText.Visibility = string.IsNullOrWhiteSpace(state.Message)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
+        ClockText.Text = DateTime.Now.ToString("HH:mm");
+        ClockText.Visibility = state.ShowClock ? Visibility.Visible : Visibility.Collapsed;
+
+        bool showUnlockAt = state.ShowClock && !arming && state.UnlockAt is not null;
+        UnlockAtText.Visibility = showUnlockAt ? Visibility.Visible : Visibility.Collapsed;
+        if (showUnlockAt)
+            UnlockAtText.Text = $"Unlocks at {state.UnlockAt!.Value:HH:mm}";
+
         UnlockButton.Content = arming ? "Cancel freeze" : "Unlock now";
 
         // PIN mode owns the release: show the prompt instead of the Unlock button (the
@@ -92,7 +122,21 @@ public partial class OverlayWindow : Window
         bool pinMode = !arming && state.RequiresPin && _verifyPin is not null;
         PinPanel.Visibility = pinMode ? Visibility.Visible : Visibility.Collapsed;
 
-        if (pinMode && !_pinFocused)
+        _pinCooldown = state.PinCooldownRemaining;
+        bool cooling = pinMode && _pinCooldown > TimeSpan.Zero;
+
+        PinCooldown.Visibility = cooling ? Visibility.Visible : Visibility.Collapsed;
+        if (cooling)
+        {
+            PinCooldown.Text =
+                $"Too many attempts. Try again in {Math.Ceiling(_pinCooldown.TotalSeconds):0}s.";
+            PinError.Visibility = Visibility.Collapsed;
+        }
+
+        PinBox.IsEnabled = !cooling;
+        PinSubmitButton.IsEnabled = !cooling;
+
+        if (pinMode && !_pinFocused && !cooling)
         {
             _pinFocused = true;
             PinBox.Focus();
@@ -122,6 +166,7 @@ public partial class OverlayWindow : Window
     private void SubmitPin()
     {
         if (_verifyPin is null) return;
+        if (_pinCooldown > TimeSpan.Zero) return;
 
         if (_verifyPin(PinBox.Password))
         {

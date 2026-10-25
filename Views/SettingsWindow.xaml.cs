@@ -38,6 +38,14 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         ChkShowCountdown.IsChecked = _settings.ShowCountdownOnOverlay;
         ChkPlaySound.IsChecked = _settings.PlaySound;
 
+        SelectTag(StyleBox, _settings.LockScreenStyle.ToString());
+        SelectTag(DisplaysBox, _settings.LockScreenOnAllDisplays ? "All" : "Primary");
+        SelectTag(ThemeBox, _settings.Theme.ToString());
+        TxtLockMessage.Text = _settings.LockScreenMessage;
+
+        ChkShowClock.IsChecked = _settings.ShowClockOnOverlay;
+        ChkCheckUpdates.IsChecked = _settings.CheckForUpdatesOnStartup;
+
         ArmBox.Value = _settings.ArmSeconds;
         SafetyBox.Value = _settings.SafetyMaxSeconds / 60;
 
@@ -160,7 +168,16 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         BindToggle(ChkCloseToTray, v => _settings.CloseToTray = v);
         BindToggle(ChkKeepAwake, v => _settings.KeepDisplayAwake = v);
         BindToggle(ChkShowCountdown, v => _settings.ShowCountdownOnOverlay = v);
+        BindToggle(ChkShowClock, v => _settings.ShowClockOnOverlay = v);
+        BindToggle(ChkCheckUpdates, v => _settings.CheckForUpdatesOnStartup = v);
         BindToggle(ChkPlaySound, v => _settings.PlaySound = v);
+
+        TxtLockMessage.TextChanged += (_, _) =>
+        {
+            if (_loading) return;
+            _settings.LockScreenMessage = TxtLockMessage.Text;
+            Report(_validateAndApply());
+        };
 
         // A NumberBox only moves typed text into Value on Enter, a spin click or focus
         // loss, so save on ValueChanged too. Enter is the usual way to set a number and
@@ -201,6 +218,45 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
     private bool IsHotkeyFieldFocused()
         => ReferenceEquals(Keyboard.FocusedElement, TxtUnlockHotkey)
            || ReferenceEquals(Keyboard.FocusedElement, TxtStartHotkey);
+
+    private void LockScreen_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+
+        if (StyleBox.SelectedItem is ComboBoxItem { Tag: string styleTag }
+            && Enum.TryParse<LockScreenStyle>(styleTag, out var style))
+            _settings.LockScreenStyle = style;
+
+        _settings.LockScreenOnAllDisplays = DisplaysBox.SelectedItem is ComboBoxItem { Tag: "All" };
+
+        Report(_validateAndApply());
+    }
+
+    private void Theme_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+
+        if (ThemeBox.SelectedItem is ComboBoxItem { Tag: string tag }
+            && Enum.TryParse<AppTheme>(tag, out var theme))
+        {
+            _settings.Theme = theme;
+            ThemeService.Apply(theme);
+        }
+
+        Report(_validateAndApply());
+    }
+
+    private static void SelectTag(ComboBox box, string tag)
+    {
+        foreach (var item in box.Items)
+        {
+            if (item is ComboBoxItem { Tag: string t } && t == tag)
+            {
+                box.SelectedItem = item;
+                return;
+            }
+        }
+    }
 
     private void BindToggle(ToggleSwitch toggle, Action<bool> setter)
     {

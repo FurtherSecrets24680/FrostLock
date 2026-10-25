@@ -13,7 +13,7 @@
     <Product>FrostLock</Product>
     <AssemblyTitle>FrostLock</AssemblyTitle>
     <Company>FurtherSecrets</Company>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\frostlock.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>

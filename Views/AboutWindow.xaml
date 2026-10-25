@@ -143,8 +143,18 @@
                        Visibility="Hidden"
                        Margin="0,12,0,0" />
 
+            <TextBlock x:Name="TxtUpdateStatus" Text="Checking for updates…"
+                       Style="{StaticResource RowDescription}"
+                       Visibility="Hidden"
+                       Margin="0,12,0,0" />
+
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-                <ui:Button x:Name="BtnCopy" Content="Copy details" Click="Copy_Click">
+                <ui:Button x:Name="BtnCheckUpdates" Content="Check for updates" Click="CheckUpdates_Click">
+                    <ui:Button.Icon>
+                        <ui:SymbolIcon Symbol="ArrowSync24" FontSize="16" />
+                    </ui:Button.Icon>
+                </ui:Button>
+                <ui:Button x:Name="BtnCopy" Content="Copy details" Click="Copy_Click" Margin="8,0,0,0">
                     <ui:Button.Icon>
                         <ui:SymbolIcon Symbol="Copy24" FontSize="16" />
                     </ui:Button.Icon>

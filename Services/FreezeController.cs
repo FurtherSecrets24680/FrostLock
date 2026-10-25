@@ -58,6 +58,7 @@ public sealed class FreezeController : IDisposable
     private DateTime _armStartedUtc;
     private DateTime _frozenAtUtc;
     private int _armSeconds;
+    private PinThrottle? _pinThrottle;
 
     public FreezeController(AppSettings settings, Dispatcher dispatcher)
     {
@@ -102,6 +103,9 @@ public sealed class FreezeController : IDisposable
             return StartResult.PinNotSet;
 
         _mode = mode;
+
+        // A fresh throttle per freeze, so lockouts never carry over to the next session.
+        _pinThrottle = mode == FreezeMode.Pin ? new PinThrottle() : null;
 
         int durationSeconds = DurationOverrideSeconds ?? _settings.DurationSeconds;
         int armSeconds = ArmOverrideSeconds ?? _settings.ArmSeconds;
@@ -213,6 +217,7 @@ public sealed class FreezeController : IDisposable
 
         try { _hard?.Release(); _hard?.Dispose(); } catch { /* ignore */ }
         _hard = null;
+        _pinThrottle = null;
 
         foreach (var overlay in _overlays)
         {
@@ -335,6 +340,12 @@ public sealed class FreezeController : IDisposable
             Progress = progress,
             MouseBlocked = mouseBlocked,
             ShowCountdown = _settings.ShowCountdownOnOverlay,
+            Message = _settings.LockScreenMessage,
+            ShowClock = _settings.ShowClockOnOverlay,
+            UnlockAt = _phase == FreezePhase.Frozen && _planned is not null
+                ? (_frozenAtUtc + _planned.Value).ToLocalTime()
+                : null,
+            PinCooldownRemaining = _pinThrottle?.CooldownRemaining ?? TimeSpan.Zero,
             UnlockHint = hint,
             ModeLabel = ModeLabel(_mode),
             Interactive = interactive,
@@ -374,15 +385,32 @@ public sealed class FreezeController : IDisposable
         _ => "Freeze"
     };
 
+    /// <summary>PIN verification with a lockout after repeated wrong entries.</summary>
+    private bool VerifyPinThrottled(string pin)
+        => _pinThrottle is null
+            ? _settings.VerifyPin(pin)
+            : _pinThrottle.Try(pin, _settings.VerifyPin) == PinAttemptResult.Success;
+
     private void ShowOverlays()
     {
+        bool pinMode = _mode == FreezeMode.Pin;
+
+        // PIN mode always needs a lock screen: it is the only surface where the PIN can be
+        // typed. "No lock screen" therefore falls back to a solid one for that mode.
+        var style = _settings.LockScreenStyle;
+        if (pinMode && style == LockScreenStyle.None)
+            style = LockScreenStyle.Solid;
+
+        // With no cover, the hooks alone do the work and nothing is drawn.
+        if (style == LockScreenStyle.None) return;
+
         var screens = Screen.AllScreens
+            .Where(s => _settings.LockScreenOnAllDisplays || s.Primary)
             .OrderByDescending(s => s.Primary)
             .ThenBy(s => s.Bounds.X)
             .ToList();
 
-        bool pinMode = _mode == FreezeMode.Pin;
-        Func<string, bool>? verifyPin = pinMode ? _settings.VerifyPin : null;
+        Func<string, bool>? verifyPin = pinMode ? VerifyPinThrottled : null;
 
         foreach (var screen in screens)
         {
@@ -390,7 +418,8 @@ public sealed class FreezeController : IDisposable
                 screen,
                 onUnlock: () => Release(FreezeEndReason.UserUnlocked),
                 verifyPin: verifyPin,
-                closeRequestsUnlock: !pinMode);
+                closeRequestsUnlock: !pinMode,
+                style: style);
 
             overlay.Show();
             overlay.PositionToScreen();

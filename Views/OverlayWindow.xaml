@@ -23,14 +23,20 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="48,40,48,0">
-            <TextBlock Text="&#xE72E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18"
-                       Foreground="#FF9C9C9C" VerticalAlignment="Center" />
-            <TextBlock Text="FrostLock" FontSize="16" FontWeight="SemiBold" Foreground="#FFFFFFFF"
-                       Margin="10,0,0,0" VerticalAlignment="Center" />
-            <TextBlock x:Name="ModeText" Text="Gentle lock" Foreground="#FF9C9C9C"
-                       Margin="14,0,0,0" VerticalAlignment="Center" />
-        </StackPanel>
+        <Grid Grid.Row="0" Margin="48,40,48,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <TextBlock Text="&#xE72E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18"
+                           Foreground="#FF9C9C9C" VerticalAlignment="Center" />
+                <TextBlock Text="FrostLock" FontSize="16" FontWeight="SemiBold" Foreground="#FFFFFFFF"
+                           Margin="10,0,0,0" VerticalAlignment="Center" />
+                <TextBlock x:Name="ModeText" Text="Gentle lock" Foreground="#FF9C9C9C"
+                           Margin="14,0,0,0" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <TextBlock x:Name="ClockText"
+                       FontSize="16" Foreground="#FFC9C9C9"
+                       HorizontalAlignment="Right" VerticalAlignment="Center" />
+        </Grid>
 
         <!-- Center -->
         <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="760">
@@ -46,6 +52,13 @@
                        Margin="0,10,0,0"
                        TextAlignment="Center" HorizontalAlignment="Center" />
 
+            <TextBlock x:Name="UnlockAtText"
+                       Text="Unlocks at --:--"
+                       FontSize="14" Foreground="#FF9C9C9C"
+                       Margin="0,4,0,0"
+                       TextAlignment="Center" HorizontalAlignment="Center"
+                       Visibility="Collapsed" />
+
             <ProgressBar x:Name="RemainingBar"
                          Width="420" Height="4"
                          Minimum="0" Maximum="1" Value="1"
@@ -59,6 +72,15 @@
                        MaxWidth="660"
                        TextAlignment="Center" TextWrapping="Wrap"
                        HorizontalAlignment="Center" />
+
+            <TextBlock x:Name="MessageText"
+                       Foreground="#FFF0F0F0"
+                       FontSize="15"
+                       Margin="0,16,0,0"
+                       MaxWidth="660"
+                       TextAlignment="Center" TextWrapping="Wrap"
+                       HorizontalAlignment="Center"
+                       Visibility="Collapsed" />
 
             <!-- PIN mode: the only way out, so it replaces the plain Unlock button. -->
             <StackPanel x:Name="PinPanel"
@@ -75,6 +97,12 @@
                 <TextBlock x:Name="PinError"
                            Text="Incorrect PIN."
                            Foreground="#FFFF9A9A"
+                           FontSize="12"
+                           Margin="2,8,0,0"
+                           Visibility="Collapsed" />
+
+                <TextBlock x:Name="PinCooldown"
+                           Foreground="#FFFFC168"
                            FontSize="12"
                            Margin="2,8,0,0"
                            Visibility="Collapsed" />

@@ -51,6 +51,9 @@ public partial class App : System.Windows.Application
 
         Settings = SettingsService.Load();
 
+        ThemeService.Apply(Settings.Theme);
+        ThemeService.StartWatching();
+
         StartupService.Apply(Settings.StartWithWindows);
 
         // CLI overrides are session-scoped; they never overwrite the user's saved defaults.

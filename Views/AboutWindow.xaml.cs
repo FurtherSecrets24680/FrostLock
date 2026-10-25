@@ -20,6 +20,7 @@ public partial class AboutWindow : Wpf.Ui.Controls.FluentWindow
     private readonly string _publisher;
     private readonly string _role;
     private bool _sizeLocked;
+    private bool _updateAvailable;
 
     public AboutWindow()
     {
@@ -122,6 +123,54 @@ public partial class AboutWindow : Wpf.Ui.Controls.FluentWindow
         {
             TxtCopyStatus.Text = $"Could not open the browser. The source is at {GitHubUrl}";
             TxtCopyStatus.Visibility = Visibility.Visible;
+        }
+    }
+
+    private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updateAvailable)
+        {
+            OpenReleases();
+            return;
+        }
+
+        BtnCheckUpdates.IsEnabled = false;
+        TxtUpdateStatus.Text = "Checking for updates…";
+        TxtUpdateStatus.Visibility = Visibility.Visible;
+
+        var result = await UpdateService.CheckAsync();
+
+        BtnCheckUpdates.IsEnabled = true;
+
+        if (!result.Succeeded)
+        {
+            TxtUpdateStatus.Text = "Could not check for updates.";
+            return;
+        }
+
+        if (result.UpdateAvailable)
+        {
+            _updateAvailable = true;
+            TxtUpdateStatus.Text = $"Version {result.LatestVersion} is available.";
+            BtnCheckUpdates.Content = "Download";
+
+            if (BtnCheckUpdates.Icon is Wpf.Ui.Controls.SymbolIcon icon)
+                icon.Symbol = Wpf.Ui.Controls.SymbolRegular.ArrowDownload24;
+            return;
+        }
+
+        TxtUpdateStatus.Text = $"You're up to date ({result.LatestVersion}).";
+    }
+
+    private void OpenReleases()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(UpdateService.ReleasesPageUrl) { UseShellExecute = true });
+        }
+        catch
+        {
+            TxtUpdateStatus.Text = $"Could not open the browser. See {UpdateService.ReleasesPageUrl}";
         }
     }
 

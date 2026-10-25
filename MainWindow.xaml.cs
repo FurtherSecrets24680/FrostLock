@@ -66,6 +66,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         LoadSettingsToUi();
         UpdateAdminBadge();
 
+        if (_settings.CheckForUpdatesOnStartup)
+            _ = CheckForUpdatesAsync();
+
         StateChanged += (_, _) =>
         {
             if (WindowState == WindowState.Minimized && _settings.MinimizeToTray)
@@ -88,6 +91,16 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         Topmost = true;
         Topmost = false;
         Focus();
+    }
+
+    /// <summary>Background check on start. Silent unless a newer release exists.</summary>
+    private async Task CheckForUpdatesAsync()
+    {
+        var result = await UpdateService.CheckAsync();
+        if (result.Succeeded && result.UpdateAvailable)
+            _tray?.ShowBalloon(
+                "FrostLock update available",
+                $"Version {result.LatestVersion} is available. Open About to get it.");
     }
 
     public void StartFreezeFromExternal() => StartFreeze();
