@@ -21,7 +21,7 @@ public static class StartupService
         }
     }
 
-    public static void Apply(bool enabled)
+    public static void Apply(bool enabled, bool startMinimized)
     {
         try
         {
@@ -33,7 +33,9 @@ public static class StartupService
             {
                 var exe = Environment.ProcessPath;
                 if (string.IsNullOrEmpty(exe)) return;
-                key.SetValue(ValueName, $"\"{exe}\" --minimized", RegistryValueKind.String);
+
+                var args = startMinimized ? " --minimized" : string.Empty;
+                key.SetValue(ValueName, $"\"{exe}\"{args}", RegistryValueKind.String);
             }
             else if (key.GetValue(ValueName) is not null)
             {

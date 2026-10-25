@@ -3,7 +3,8 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  Title="FrostLock settings"
-                 Width="560"
+                  Width="560"
+                  MinWidth="520"
                  Height="720"
                  WindowStartupLocation="CenterOwner"
                  ShowInTaskbar="False"
@@ -40,7 +41,7 @@
                         <Grid Margin="0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="176" />
+                                <ColumnDefinition Width="200" />
                             </Grid.ColumnDefinitions>
                             <Grid VerticalAlignment="Center">
                                 <Grid.ColumnDefinitions>
@@ -231,7 +232,7 @@
                         <Grid Margin="0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="176" />
+                                <ColumnDefinition Width="200" />
                             </Grid.ColumnDefinitions>
                             <Grid VerticalAlignment="Center">
                                 <Grid.ColumnDefinitions>
@@ -260,7 +261,7 @@
                         <Grid Margin="0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="176" />
+                                <ColumnDefinition Width="200" />
                             </Grid.ColumnDefinitions>
                             <Grid VerticalAlignment="Center">
                                 <Grid.ColumnDefinitions>
@@ -332,7 +333,7 @@
                         <Grid Margin="0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="260" />
+                                <ColumnDefinition Width="200" />
                             </Grid.ColumnDefinitions>
                             <Grid VerticalAlignment="Center">
                                 <Grid.ColumnDefinitions>
@@ -450,7 +451,7 @@
                         <Grid Margin="0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="260" />
+                                <ColumnDefinition Width="200" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="New PIN" Style="{StaticResource RowTitle}" />
                             <Grid Grid.Column="1">
@@ -481,7 +482,7 @@
                         <Grid Margin="0,6,0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="260" />
+                                <ColumnDefinition Width="200" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="Confirm PIN" Style="{StaticResource RowTitle}" />
                             <Grid Grid.Column="1">
@@ -537,7 +538,7 @@
                 </Border>
 
                 <!-- Hotkeys -->
-                <StackPanel Orientation="Horizontal" Margin="2,22,0,8">
+                <StackPanel x:Name="HotkeysSection" Orientation="Horizontal" Margin="2,22,0,8">
                     <ui:SymbolIcon Symbol="Keyboard24" Style="{StaticResource SectionIcon}" />
                     <TextBlock Text="Hotkeys" Style="{StaticResource SectionHeader}" Margin="0" />
                 </StackPanel>
@@ -547,7 +548,7 @@
                         <Grid Margin="0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="200" />
                             </Grid.ColumnDefinitions>
                             <Grid VerticalAlignment="Center">
                                 <Grid.ColumnDefinitions>
@@ -573,7 +574,7 @@
                         <Grid Margin="0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="200" />
                             </Grid.ColumnDefinitions>
                             <Grid VerticalAlignment="Center">
                                 <Grid.ColumnDefinitions>
@@ -607,9 +608,66 @@
                             Title="Hotkey not applied"
                             Margin="0,12,0,0" />
 
-                <TextBlock Text="Settings are stored in %AppData%\FrostLock\settings.json"
-                           Style="{StaticResource RowDescription}"
-                           Margin="2,16,0,0" />
+                <!-- Configuration -->
+                <StackPanel Orientation="Horizontal" Margin="2,22,0,8">
+                    <ui:SymbolIcon Symbol="DocumentText24" Style="{StaticResource SectionIcon}" />
+                    <TextBlock Text="Configuration" Style="{StaticResource SectionHeader}" Margin="0" />
+                </StackPanel>
+
+                <Border Style="{StaticResource CardPanel}">
+                    <StackPanel>
+                        <Grid Margin="0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Symbol="DocumentText24" Style="{StaticResource RowIcon}" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Settings file" Style="{StaticResource RowTitle}" />
+                                    <TextBlock Text="Edit the JSON directly, or back it up and restore it."
+                                               Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+
+                        <TextBlock Style="{StaticResource RowDescription}" Margin="28,0,0,10">
+                            <Hyperlink Style="{StaticResource AppHyperlink}"
+                                       Click="OpenSettingsFolder_Click"
+                                       ToolTip="Open the folder that contains settings.json">
+                                <Run x:Name="RunSettingsPath" />
+                            </Hyperlink>
+                        </TextBlock>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,10">
+                            <ui:Button x:Name="BtnEditJson" Content="Edit JSON" Click="EditJson_Click">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="Code24" FontSize="16" />
+                                </ui:Button.Icon>
+                            </ui:Button>
+                            <ui:Button x:Name="BtnExportSettings" Content="Export…" Click="ExportSettings_Click" Margin="8,0,0,0">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="ArrowExportUp24" FontSize="16" />
+                                </ui:Button.Icon>
+                            </ui:Button>
+                            <ui:Button x:Name="BtnImportSettings" Content="Import…" Click="ImportSettings_Click" Margin="8,0,0,0">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="ArrowImport24" FontSize="16" />
+                                </ui:Button.Icon>
+                            </ui:Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <ui:InfoBar x:Name="ConfigStatus"
+                            Severity="Success"
+                            IsClosable="True"
+                            IsOpen="False"
+                            Margin="0,12,0,0" />
 
             </StackPanel>
         </ScrollViewer>

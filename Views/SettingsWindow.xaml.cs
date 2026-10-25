@@ -1,11 +1,20 @@
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using FrostLock.Models;
 using FrostLock.Services;
+using Microsoft.Win32;
 using ToggleSwitch = Wpf.Ui.Controls.ToggleSwitch;
 
 namespace FrostLock.Views;
+
+public enum SettingsSection
+{
+    General,
+    Hotkeys
+}
 
 public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
 {
@@ -14,6 +23,7 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
     private bool _loading;
     private bool _newPinRevealed;
     private bool _confirmPinRevealed;
+    private SettingsSection _section = SettingsSection.General;
 
     public SettingsWindow(AppSettings settings, Func<string?> validateAndApply)
     {
@@ -22,8 +32,29 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         _settings = settings;
         _validateAndApply = validateAndApply;
 
+        RunSettingsPath.Text = SettingsService.SettingsFilePath;
+
         LoadFromSettings();
         WireEvents();
+    }
+
+    /// <summary>Scrolls to a section, optionally focusing the first useful field.</summary>
+    public void ShowSection(SettingsSection section)
+    {
+        _section = section;
+        if (IsLoaded) NavigateToSection(section);
+    }
+
+    private void NavigateToSection(SettingsSection section)
+    {
+        if (section == SettingsSection.Hotkeys)
+        {
+            HotkeysSection.BringIntoView();
+            TxtUnlockHotkey.Focus();
+            return;
+        }
+
+        ContentScroll.ScrollToTop();
     }
 
     private void LoadFromSettings()
@@ -207,10 +238,8 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
             if (e.Key == Key.Escape && !IsHotkeyFieldFocused()) Close();
         };
 
-        // A freshly shown settings page should always start at the top, whatever element
-        // WPF decides to focus first.
         Loaded += (_, _) => Dispatcher.BeginInvoke(
-            new Action(() => ContentScroll.ScrollToTop()),
+            new Action(() => NavigateToSection(_section)),
             System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
@@ -376,6 +405,127 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
             SavePin_Click(sender, e);
             e.Handled = true;
         }
+    }
+
+    // Settings file
+
+    private void EditJson_Click(object sender, RoutedEventArgs e)
+    {
+        var editor = new SettingsFileWindow(_settings, ApplyImportedSettings) { Owner = this };
+
+        if (editor.ShowDialog() == true)
+            ShowConfigStatus(Wpf.Ui.Controls.InfoBarSeverity.Success,
+                "Settings applied", "The edited file was validated and applied.");
+    }
+
+    private void ExportSettings_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Export FrostLock settings",
+            FileName = "frostlock-settings.json",
+            DefaultExt = ".json",
+            AddExtension = true,
+            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
+        };
+
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            File.WriteAllText(dialog.FileName, SettingsService.Serialize(_settings));
+            ShowConfigStatus(Wpf.Ui.Controls.InfoBarSeverity.Success,
+                "Settings exported", dialog.FileName);
+        }
+        catch (Exception ex)
+        {
+            ShowConfigStatus(Wpf.Ui.Controls.InfoBarSeverity.Error,
+                "Could not export", ex.Message);
+        }
+    }
+
+    private void ImportSettings_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Import FrostLock settings",
+            DefaultExt = ".json",
+            CheckFileExists = true,
+            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
+        };
+
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            if (!SettingsService.TryParse(File.ReadAllText(dialog.FileName), out var imported, out var error))
+            {
+                ShowConfigStatus(Wpf.Ui.Controls.InfoBarSeverity.Error,
+                    "Import failed", error ?? "The file could not be read.");
+                return;
+            }
+
+            var answer = MessageBox.Show(this,
+                "Replace all current settings with the values from this file?\n\n" +
+                dialog.FileName + "\n\n" +
+                "This includes the PIN and lifetime statistics.",
+                "Import settings", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+            if (answer != MessageBoxResult.Yes) return;
+
+            var hotkeyError = ApplyImportedSettings(imported);
+
+            ShowConfigStatus(
+                hotkeyError is null ? Wpf.Ui.Controls.InfoBarSeverity.Success : Wpf.Ui.Controls.InfoBarSeverity.Warning,
+                hotkeyError is null ? "Settings imported" : "Imported with a problem",
+                hotkeyError ?? "The file was applied.");
+        }
+        catch (Exception ex)
+        {
+            ShowConfigStatus(Wpf.Ui.Controls.InfoBarSeverity.Error,
+                "Could not import", ex.Message);
+        }
+    }
+
+    private void OpenSettingsFolder_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var path = SettingsService.SettingsFilePath;
+            var args = File.Exists(path)
+                ? $"/select,\"{path}\""
+                : $"\"{SettingsService.SettingsDirectory}\"";
+
+            Process.Start(new ProcessStartInfo("explorer.exe", args) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            ShowConfigStatus(Wpf.Ui.Controls.InfoBarSeverity.Error,
+                "Could not open the folder", ex.Message);
+        }
+    }
+
+    /// <summary>Applies imported settings, including the PIN and statistics, then refreshes the controls.</summary>
+    private string? ApplyImportedSettings(AppSettings imported)
+    {
+        _settings.CopyFrom(imported, includeStats: true);
+
+        ThemeService.Apply(_settings.Theme);
+
+        var error = _validateAndApply();
+
+        LoadFromSettings();
+        Report(error);
+
+        return error;
+    }
+
+    private void ShowConfigStatus(Wpf.Ui.Controls.InfoBarSeverity severity, string title, string message)
+    {
+        ConfigStatus.Severity = severity;
+        ConfigStatus.Title = title;
+        ConfigStatus.Message = message;
+        ConfigStatus.IsOpen = true;
     }
 
     private void Reset_Click(object sender, RoutedEventArgs e)

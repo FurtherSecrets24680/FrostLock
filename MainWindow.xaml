@@ -100,6 +100,7 @@
                            HorizontalAlignment="Stretch"
                            HorizontalContentAlignment="Center"
                            Content="Freeze input now"
+                           ToolTipService.ShowDuration="30000"
                            Click="Freeze_Click">
                     <ui:Button.Icon>
                         <ui:SymbolIcon Symbol="LockClosed24" FontSize="16" />
@@ -128,6 +129,7 @@
                             </Grid>
                             <ComboBox x:Name="ModeBox" Grid.Column="1" HorizontalAlignment="Stretch"
                                       VerticalAlignment="Center" VerticalContentAlignment="Center"
+                                      ToolTipService.ShowDuration="30000"
                                       SelectionChanged="Mode_SelectionChanged">
                                 <ComboBoxItem Tag="Gentle">
                                     <StackPanel Orientation="Horizontal">
@@ -150,7 +152,8 @@
                                         <TextBlock Text="PIN lock" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </ComboBoxItem>
-                                <ComboBoxItem Tag="Hard">
+                                <ComboBoxItem Tag="Hard"
+                                              ToolTip="Requires administrator rights. While active, press Ctrl+Alt+Del to drop the OS input block, then click Unlock. A timer or safety cap can also release it.">
                                     <StackPanel Orientation="Horizontal">
                                         <ui:SymbolIcon Symbol="LockClosed24" FontSize="16" Margin="0,0,8,0"
                                                        VerticalAlignment="Center" />
@@ -169,7 +172,7 @@
                         <Grid Margin="0,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="190" />
+                                <ColumnDefinition Width="210" />
                             </Grid.ColumnDefinitions>
                             <Grid VerticalAlignment="Center">
                                 <Grid.ColumnDefinitions>
@@ -187,8 +190,38 @@
                                 <ComboBoxItem Content="5 minutes" Tag="300" />
                                 <ComboBoxItem Content="15 minutes" Tag="900" />
                                 <ComboBoxItem Content="Until I unlock" Tag="0" />
+                                <ComboBoxItem Content="Custom…" Tag="Custom" />
                             </ComboBox>
                         </Grid>
+
+                        <StackPanel x:Name="CustomDurationRow" Visibility="Collapsed">
+                            <Border Style="{StaticResource Divider}" />
+                            <Grid Margin="0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="210" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Custom duration" Style="{StaticResource RowTitle}" />
+                                    <TextBlock Text="Choose how long to keep input frozen."
+                                               Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                            HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <ui:NumberBox x:Name="CustomDurationBox"
+                                                  Width="92" Minimum="1" Maximum="1440"
+                                                  SmallChange="1" Value="5"
+                                                  SpinButtonPlacementMode="Hidden"
+                                                  ClearButtonEnabled="False"
+                                                  ToolTip="Enter a duration from 1 to 1,440 minutes."
+                                                  ValueChanged="CustomDuration_ValueChanged"
+                                                  LostFocus="CustomDuration_LostFocus"
+                                                  VerticalAlignment="Center" />
+                                    <TextBlock Text="min" Style="{StaticResource RowDescription}"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
@@ -296,7 +329,7 @@
                                 <ui:SymbolIcon Symbol="Desktop24" Style="{StaticResource RowIcon}" />
                                 <StackPanel Grid.Column="1">
                                     <TextBlock Text="Keep the display awake" Style="{StaticResource RowTitle}" />
-                                    <TextBlock Text="Stops the screen from sleeping while frozen"
+                            <TextBlock Text="Stops the screen from sleeping while frozen."
                                                Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
                                 </StackPanel>
                             </Grid>
@@ -305,18 +338,26 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Session details -->
-                <Border Style="{StaticResource CardPanel}" Margin="0,16,0,0">
+                <!-- At a glance -->
+                <StackPanel Orientation="Horizontal" Margin="2,18,0,8">
+                    <ui:SymbolIcon Symbol="Info24" Style="{StaticResource SectionIcon}" />
+                    <TextBlock Text="At a glance" Style="{StaticResource SectionHeader}" Margin="0" />
+                </StackPanel>
+
+                <Border Style="{StaticResource CardPanel}">
                     <StackPanel>
                         <Grid Margin="0,6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="92" />
+                                <ColumnDefinition Width="100" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <ui:SymbolIcon Symbol="Keyboard24" Style="{StaticResource RowIcon}" />
-                            <TextBlock Grid.Column="1" Text="Hotkeys"
-                                       Style="{StaticResource RowDescription}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Style="{StaticResource RowDescription}" VerticalAlignment="Center">
+                                <Hyperlink Style="{StaticResource AppHyperlink}"
+                                           Click="Hotkeys_Click"
+                                           ToolTip="Open the hotkey settings">Hotkeys</Hyperlink>
+                            </TextBlock>
                             <TextBlock x:Name="TxtHotkeys" Grid.Column="2"
                                        Text="Start Ctrl+Alt+L · Unlock Ctrl+Alt+U"
                                        Style="{StaticResource RowDescription}"
@@ -329,7 +370,7 @@
                         <Grid Margin="0,6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="92" />
+                                <ColumnDefinition Width="100" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <ui:SymbolIcon Symbol="Clock24" Style="{StaticResource RowIcon}" />
@@ -347,11 +388,11 @@
                         <Grid Margin="0,6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="92" />
+                                <ColumnDefinition Width="100" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <ui:SymbolIcon Symbol="Person24" Style="{StaticResource RowIcon}" />
-                            <TextBlock Grid.Column="1" Text="Session"
+                                <TextBlock Grid.Column="1" Text="Running as"
                                        Style="{StaticResource RowDescription}" VerticalAlignment="Center" />
                             <TextBlock x:Name="TxtRole" Grid.Column="2"
                                        Text="Standard user"

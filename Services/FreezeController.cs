@@ -365,7 +365,7 @@ public sealed class FreezeController : IDisposable
     private string BuildUnlockHint(bool mouseBlocked)
     {
         if (_mode == FreezeMode.Hard)
-            return "Press Ctrl+Alt+Del to release the OS freeze, then click Unlock. A timer will also release it.";
+            return "Input is held by the operating system.";
 
         if (_mode == FreezeMode.Pin)
             return "Enter your PIN to unlock.";

@@ -149,8 +149,8 @@ public sealed class AppSettings
 
     public AppSettings Clone() => (AppSettings)MemberwiseClone();
 
-    /// <summary>Copies every editable value in place (references to this instance stay valid).</summary>
-    public void CopyFrom(AppSettings other)
+    /// <summary>Copies editable settings; copies statistics only when requested.</summary>
+    public void CopyFrom(AppSettings other, bool includeStats = false)
     {
         Mode = other.Mode;
         DurationSeconds = other.DurationSeconds;
@@ -176,5 +176,11 @@ public sealed class AppSettings
         PlaySound = other.PlaySound;
         PinSalt = other.PinSalt;
         PinHash = other.PinHash;
+
+        if (!includeStats) return;
+
+        FreezeCount = other.FreezeCount;
+        TotalFrozenSeconds = other.TotalFrozenSeconds;
+        LastFrozenUtc = other.LastFrozenUtc;
     }
 }

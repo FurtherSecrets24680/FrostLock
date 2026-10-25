@@ -9,7 +9,6 @@ FrostLock takes the keyboard and mouse away for a set period, covers each displa
 - WPF on `net8.0-windows`, with light, dark and follow-Windows themes, the Windows accent colour and a Mica backdrop.
 - Four freeze modes, from a friendly overlay to an OS-level input freeze.
 - A lock screen on each display, or the primary display only, scaled for its DPI.
-- Several release paths, so a stuck overlay is recoverable.
 
 ---
 
@@ -44,15 +43,16 @@ If you are not running as an administrator, Hard mode offers to restart itself e
 - **Clock**: a wall clock, plus the projected unlock time for timed freezes. Toggleable.
 - **Theme**: light, dark, or follow Windows; the System choice follows live theme switches.
 - **Update check**: a quiet check against GitHub releases on start (on by default), and a manual check in About that links to the release. Nothing downloads automatically.
-- **Duration presets**: 30s, 1m, 5m, 15m, until I unlock.
+- **Freeze duration**: presets from 30 seconds to 15 minutes, an indefinite option, or a custom timer from 1 minute to 24 hours.
 - **Statistics**: freeze count and total frozen time.
 - **About dialog**: publisher, version, .NET/WPF-UI/Windows details, elevation state, settings path, a *Copy details* button, and a link to the source on GitHub.
 - **Sound** on freeze and release, toggleable.
-- **Settings** in JSON at `%AppData%\FrostLock\settings.json`.
+- **Settings** in JSON at `%AppData%\FrostLock\settings.json`, with an in-app editor, export and import.
 - **Single instance**, with command-line signalling to the copy already running.
 
-The control panel is a `FluentWindow` with an extended title bar, Mica backdrop and rounded corners.
-Settings sit in Windows Settings-style cards with Fluent toggles and number boxes. The lock screen stays deliberately dark in every theme: a clock in the header, a large countdown, a thin progress bar, an optional message, and a hint that tells you how to release without printing the combination. A timed freeze also says when it will end.
+The control panel is a `FluentWindow` with an extended title bar, Mica backdrop and rounded corners. Its **At a glance** card shows the hotkeys, lifetime statistics, and current elevation state; click **Hotkeys** to jump directly to those settings.
+
+Settings sit in Windows Settings-style cards with Fluent toggles and number boxes. **Start hidden in the tray** is off by default. The lock screen stays deliberately dark in every theme: a clock in the header, a large countdown, a thin progress bar, an optional message, and mode-appropriate release guidance. Hard mode keeps its escape route off the lock screen; its tooltip explains the route before a freeze starts. A timed freeze also says when it will end.
 
 ## Hotkeys
 
@@ -65,17 +65,18 @@ Change both in **Settings → Hotkeys**. Click a field and press the combination
 
 ## Settings
 
-Preferences are grouped into five cards, and each change applies and saves straight away. **Reset to defaults** sits at the bottom left.
+Preferences are grouped into six cards, and each change applies and saves straight away. **Reset to defaults** sits at the bottom left.
 
 | Card | Options |
 | --- | --- |
-| **General** | Theme (`System`, `Light`, `Dark`), start with Windows, start hidden, minimise to tray, close keeps running, keep the display awake, sound, update check on start. |
+| **General** | Theme (`System`, `Light`, `Dark`), start with Windows, start hidden (off by default), minimise to tray, close keeps running, keep the display awake, sound, update check on start. |
 | **Lock screen** | Style (`Solid`, `Dim`, `None`), displays (`All`, `Primary`), countdown, clock, optional message. |
 | **Safety** | Arm delay and the optional safety auto-release ceiling. |
 | **PIN** | Set, change or remove the PIN. At least 4 characters. |
 | **Hotkeys** | Unlock combo and the global start hotkey. |
+| **Configuration** | Edit the JSON directly, export a backup, import one, or open the settings folder. |
 
-The footer names the settings file: `%AppData%\FrostLock\settings.json`.
+The Configuration card shows the settings file path. The file and any export include the PIN hash and lifetime statistics, so treat a copy like a password.
 
 ## Command line
 
@@ -168,6 +169,7 @@ FrostLock/
 - **FrostLock is a speed bump.** A local administrator, `Ctrl+Alt+Del`, Task Manager on the secure desktop, safe mode or physical access each end a freeze.
 - **Windows reserves `Ctrl+Alt+Del`** as the secure attention sequence, so a user-mode app cannot intercept it. That is what makes Hard mode escapable.
 - **Hard mode ignores FrostLock's own hotkey.** `BlockInput` freezes the input queue at the OS level, so the app can listen but not act. Release with the timer, the safety cap, or `Ctrl+Alt+Del`, which makes Windows drop the block.
+- **Hard mode keeps its escape route off the lock screen.** The combination and the timer/cap behaviour are in the tooltip on the freeze button before you start; the frozen screen only says input is held.
 - **PIN mode has no reset from inside the lock.** A forgotten PIN means ending FrostLock through Task Manager, or running `FrostLock.exe --panic`. The 30-second cooldown slows guessing, but it is not a tamper-proof lockout.
 - **A non-elevated hook cannot cover elevated apps.** Send that input to Hard mode, which runs elevated.
 - **Hard mode, "until I unlock", and no safety cap** leaves `Ctrl+Alt+Del` as the only exit, as with [KeyFreeze](https://keyfreeze.com/).

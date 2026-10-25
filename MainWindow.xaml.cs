@@ -176,7 +176,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         try
         {
-            var args = $"--freeze --minimized --allow-instance --mode hard " +
+            var args = $"--freeze --allow-instance --mode hard " +
                        $"--seconds {_settings.DurationSeconds} --arm {_settings.ArmSeconds}";
 
             Process.Start(new ProcessStartInfo(exe)
@@ -210,6 +210,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         _wasVisibleBeforeFreeze = IsVisible;
         if (IsVisible) Hide();
+
+        BtnFreeze.ToolTip = null;
+        ModeBox.ToolTip = null;
 
         _tray?.SetFrozen(true);
     }
@@ -281,7 +284,39 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         if (_loading) return;
         if (DurationBox.SelectedItem is not ComboBoxItem { Tag: not null } item) return;
+
+        if (string.Equals(item.Tag.ToString(), "Custom", StringComparison.OrdinalIgnoreCase))
+        {
+            CustomDurationRow.Visibility = Visibility.Visible;
+            _loading = true;
+            CustomDurationBox.Value = Math.Clamp(
+                (int)Math.Ceiling(_settings.DurationSeconds / 60d), 1, 1440);
+            _loading = false;
+            return;
+        }
+
+        CustomDurationRow.Visibility = Visibility.Collapsed;
         if (!int.TryParse(item.Tag.ToString(), out var seconds)) return;
+
+        _settings.DurationSeconds = seconds;
+        SaveSettings();
+        UpdateStatusIdle();
+    }
+
+    private void CustomDuration_ValueChanged(object sender, Wpf.Ui.Controls.NumberBoxValueChangedEventArgs e)
+        => ApplyCustomDuration();
+
+    private void CustomDuration_LostFocus(object sender, RoutedEventArgs e)
+        => ApplyCustomDuration();
+
+    private void ApplyCustomDuration()
+    {
+        if (_loading || DurationBox.SelectedItem is not ComboBoxItem { Tag: "Custom" }) return;
+        if (CustomDurationBox.Value is not { } value || !double.IsFinite(value)) return;
+
+        var minutes = Math.Clamp((int)Math.Round(value), 1, 1440);
+        var seconds = minutes * 60;
+        if (_settings.DurationSeconds == seconds) return;
 
         _settings.DurationSeconds = seconds;
         SaveSettings();
@@ -306,14 +341,21 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         SelectByTag(ModeBox, _settings.Mode.ToString());
 
-        SelectByTag(DurationBox, _settings.DurationSeconds switch
+        var durationTag = _settings.DurationSeconds switch
         {
+            0 => "0",
             30 => "30",
             60 => "60",
             300 => "300",
             900 => "900",
-            _ => "0"
-        });
+            _ => "Custom"
+        };
+        SelectByTag(DurationBox, durationTag);
+        CustomDurationBox.Value = Math.Clamp(
+            (int)Math.Ceiling(_settings.DurationSeconds / 60d), 1, 1440);
+        CustomDurationRow.Visibility = durationTag == "Custom"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         ChkBlockAllKeys.IsChecked = _settings.BlockAllKeys;
         ChkBlockMouse.IsChecked = _settings.BlockMouse;
@@ -363,6 +405,38 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         AdminNotice.IsOpen = mode == FreezeMode.Hard && !_isAdmin;
         PinNotice.IsOpen = mode == FreezeMode.Pin && !_settings.HasPin;
+
+        UpdateFreezeToolTip();
+    }
+
+    private void UpdateFreezeToolTip()
+    {
+        if (_settings.Mode != FreezeMode.Hard)
+        {
+            BtnFreeze.ToolTip = null;
+            ModeBox.ToolTip = null;
+            return;
+        }
+
+        var text = _isAdmin
+            ? "Hard freeze is running elevated. "
+            : "Hard freeze needs administrator rights; FrostLock will restart elevated. ";
+
+        text += "While it is active, press Ctrl+Alt+Del to drop the OS input block, then click Unlock.";
+
+        if (_settings.IsIndefinite)
+        {
+            text += _settings.SafetyMaxSeconds > 0
+                ? " The safety cap also releases it."
+                : " With no timer and no safety cap, that is the only way out.";
+        }
+        else
+        {
+            text += " The timer also releases it.";
+        }
+
+        BtnFreeze.ToolTip = text;
+        ModeBox.ToolTip = text;
     }
 
     private void UpdateHotkeyLabels()
@@ -390,6 +464,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             ? "∞"
             : FormatDuration(TimeSpan.FromSeconds(_settings.DurationSeconds));
         BtnFreeze.Content = "Freeze input now";
+        UpdateFreezeToolTip();
     }
 
     private void UpdateStats()
@@ -419,7 +494,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private string? SaveSettings()
     {
         SettingsService.Save(_settings);
-        StartupService.Apply(_settings.StartWithWindows);
+        StartupService.Apply(_settings.StartWithWindows, _settings.StartMinimized);
 
         UpdateHotkeyLabels();
 
@@ -443,11 +518,14 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         return null;
     }
 
-    private void OpenSettings()
+    private void OpenSettings() => OpenSettings(SettingsSection.General);
+
+    private void OpenSettings(SettingsSection section)
     {
         if (_settingsWindow is { IsLoaded: true })
         {
             _settingsWindow.Activate();
+            _settingsWindow.ShowSection(section);
             return;
         }
 
@@ -468,6 +546,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         _settingsWindow = window;
         window.Show();
+        window.ShowSection(section);
     }
 
     // Window commands
@@ -475,6 +554,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private void Freeze_Click(object sender, RoutedEventArgs e) => StartFreeze();
 
     private void Settings_Click(object sender, RoutedEventArgs e) => OpenSettings();
+
+    private void Hotkeys_Click(object sender, RoutedEventArgs e) => OpenSettings(SettingsSection.Hotkeys);
 
     private void About_Click(object sender, RoutedEventArgs e) => OpenAbout();
 

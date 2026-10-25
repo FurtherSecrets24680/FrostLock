@@ -14,6 +14,9 @@ public static class SettingsService
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+        PropertyNameCaseInsensitive = true,
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
     };
 
@@ -24,12 +27,8 @@ public static class SettingsService
             if (File.Exists(FilePath))
             {
                 var json = File.ReadAllText(FilePath);
-                var loaded = JsonSerializer.Deserialize<AppSettings>(json, Options);
-                if (loaded is not null)
-                {
-                    Normalize(loaded);
+                if (TryParse(json, out var loaded, out _))
                     return loaded;
-                }
             }
         }
         catch
@@ -45,11 +44,48 @@ public static class SettingsService
         try
         {
             Directory.CreateDirectory(Dir);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(settings, Options));
+            File.WriteAllText(FilePath, Serialize(settings));
         }
         catch
         {
             // Ignore persistence failures; the session keeps working with in-memory values.
+        }
+    }
+
+    public static string Serialize(AppSettings settings) => JsonSerializer.Serialize(settings, Options);
+
+    /// <summary>
+    /// Parses and normalizes JSON settings from disk, the editor, or an import file.
+    /// </summary>
+    public static bool TryParse(string json, out AppSettings settings, out string? error)
+    {
+        settings = new AppSettings();
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            error = "The settings file is empty.";
+            return false;
+        }
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<AppSettings>(json, Options);
+            if (parsed is null)
+            {
+                error = "The file did not contain a settings object.";
+                return false;
+            }
+
+            Normalize(parsed);
+            settings = parsed;
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            var where = ex.LineNumber is { } line ? $" at line {line + 1}" : string.Empty;
+            error = $"Invalid JSON{where}: {ex.Message}";
+            return false;
         }
     }
 
@@ -65,7 +101,11 @@ public static class SettingsService
         }
 
         if (s.DurationSeconds < 0) s.DurationSeconds = 0;
+        if (s.ArmSeconds < 0) s.ArmSeconds = 0;
         if (s.SafetyMaxSeconds < 0) s.SafetyMaxSeconds = 0;
+        if (s.FreezeCount < 0) s.FreezeCount = 0;
+        if (s.TotalFrozenSeconds < 0) s.TotalFrozenSeconds = 0;
+        s.LockScreenMessage ??= string.Empty;
         if (string.IsNullOrWhiteSpace(s.UnlockHotkey)) s.UnlockHotkey = "Ctrl+Alt+U";
         if (string.IsNullOrWhiteSpace(s.StartHotkey)) s.StartHotkey = "Ctrl+Alt+L";
 
@@ -77,4 +117,6 @@ public static class SettingsService
     }
 
     public static string SettingsDirectory => Dir;
+
+    public static string SettingsFilePath => FilePath;
 }

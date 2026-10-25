@@ -80,6 +80,10 @@ public partial class OverlayWindow : Window
 
         ModeText.Text = state.ModeLabel;
 
+        SafetyText.Visibility = state.Mode == FreezeMode.Hard
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
         if (arming)
         {
             PhaseText.Text = "Freezing input";

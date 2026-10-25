@@ -54,7 +54,7 @@ public partial class App : System.Windows.Application
         ThemeService.Apply(Settings.Theme);
         ThemeService.StartWatching();
 
-        StartupService.Apply(Settings.StartWithWindows);
+        StartupService.Apply(Settings.StartWithWindows, Settings.StartMinimized);
 
         // CLI overrides are session-scoped; they never overwrite the user's saved defaults.
         Controller = new FreezeController(Settings, Dispatcher)
