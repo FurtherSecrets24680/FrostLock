@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using FrostLock.Interop;
 using FrostLock.Models;
 using FrostLock.Services;
 using FrostLock.Views;
@@ -15,6 +16,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private readonly FreezeController _controller;
 
     private readonly HotkeyService _hotkeys = new();
+    private readonly UsbDriveService _usbDrive = new();
     private TrayService? _tray;
     private SettingsWindow? _settingsWindow;
     private AboutWindow? _aboutWindow;
@@ -25,6 +27,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private bool _initialized;
     private bool _isAdmin;
     private bool _wasVisibleBeforeFreeze;
+    private bool _usbWatching;
+    private bool _usbFreezeActive;
+    private bool _usbReverseBehavior;
 
     public MainWindow(AppSettings settings, FreezeController controller)
     {
@@ -48,6 +53,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         _hotkeys.Attach(this);
         _hotkeys.StartPressed += StartFreeze;
+        _usbDrive.Attach(this);
+        _usbDrive.TargetPresenceChanged += OnUsbTargetPresenceChanged;
 
         _tray = new TrayService();
         _tray.FreezeRequested += StartFreeze;
@@ -55,6 +62,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _tray.ShowRequested += ShowFromTray;
         _tray.SettingsRequested += OpenSettings;
         _tray.ExitRequested += ExitApplication;
+        _tray.StopWatchingRequested += StopUsbWatching;
 
         _controller.Started += OnFreezeStarted;
         _controller.Ended += OnFreezeEnded;
@@ -100,12 +108,112 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         if (result.Succeeded && result.UpdateAvailable)
             _tray?.ShowBalloon(
                 "FrostLock update available",
-                $"Version {result.LatestVersion} is available. Open About to get it.");
+                $"Version {result.LatestVersion} is available. Open About to install it.");
     }
 
     public void StartFreezeFromExternal() => StartFreeze();
 
-    public void Panic() => _controller.Release(FreezeEndReason.UserUnlocked);
+    private void OnUsbTargetPresenceChanged(bool inserted)
+    {
+        if (!_usbWatching) return;
+
+        bool shouldFreeze = _usbReverseBehavior ? !inserted : inserted;
+
+        if (shouldFreeze)
+        {
+            if (_controller.IsActive) return;
+
+            _usbFreezeActive = true;
+            ModeOverride = FreezeMode.Strict;
+            StartFreezeCore(fromUsb: true);
+            if (!_controller.IsActive) _usbFreezeActive = false;
+            return;
+        }
+
+        if (!_usbFreezeActive || !_controller.IsActive) return;
+        _usbFreezeActive = false;
+        _controller.RequestRelease(FreezeEndReason.UserUnlocked);
+    }
+
+    /// <summary>Executes a command received from another FrostLock process or the CLI.</summary>
+    public InstanceReply Execute(InstanceCommand command)
+    {
+        switch (command.Command.Trim().ToLowerInvariant())
+        {
+            case "show":
+                if (_controller.IsActive)
+                    return InstanceReply.Fail("FrostLock is frozen; its settings window stays hidden until release.");
+                ShowFromTray();
+                return InstanceReply.Done("FrostLock window shown.");
+
+            case "freeze":
+                if (_controller.IsActive)
+                    return InstanceReply.Fail("A freeze is already active.");
+
+                if (command.Mode is not null)
+                {
+                    if (!Enum.TryParse<FreezeMode>(command.Mode, true, out var mode))
+                        return InstanceReply.Fail($"Unknown freeze mode '{command.Mode}'.");
+                    ModeOverride = mode;
+                }
+
+                _controller.DurationOverrideSeconds = command.DurationSeconds;
+                _controller.ArmOverrideSeconds = command.ArmSeconds;
+                _controller.PlaySoundOverride = command.Sound;
+
+                if (!IsVisible) Hide();
+                StartFreeze();
+
+                _controller.DurationOverrideSeconds = null;
+                _controller.ArmOverrideSeconds = null;
+                _controller.PlaySoundOverride = null;
+
+                return _controller.IsActive
+                    ? InstanceReply.Done("Freeze started.")
+                    : InstanceReply.Fail("The freeze could not be started.");
+
+            case "panic":
+                if (!_controller.IsActive)
+                    return InstanceReply.Done("No freeze is active.");
+                if (!_controller.RequestRelease(FreezeEndReason.UserUnlocked))
+                    return InstanceReply.Fail("PIN lock is active; enter the PIN or emergency phrase on its lock screen.");
+                return InstanceReply.Done("Freeze released.");
+
+            case "lock":
+                try
+                {
+                    return Native.LockWorkStation()
+                        ? InstanceReply.Done("The Windows session was locked.")
+                        : InstanceReply.Fail("Windows could not lock the session.");
+                }
+                catch (Exception ex)
+                {
+                    return InstanceReply.Fail($"Could not lock the session: {ex.Message}");
+                }
+
+            case "status":
+                return InstanceReply.Done(_controller.IsActive
+                    ? $"Active: {_controller.Mode}; phase {_controller.Phase}."
+                    : "Idle: no freeze is active.");
+
+            case "exit":
+                if (_controller.RequiresPin)
+                    return InstanceReply.Fail("PIN lock is active; enter the PIN or emergency phrase before exiting.");
+                ExitApplication();
+                return InstanceReply.Done("FrostLock is exiting.");
+
+            default:
+                return InstanceReply.Fail($"Unknown FrostLock command '{command.Command}'.");
+        }
+    }
+
+    public void Panic()
+    {
+        if (_controller.RequestRelease(FreezeEndReason.UserUnlocked)) return;
+
+        // A PIN freeze only opens from the lock screen.
+        _tray?.ShowBalloon("PIN lock is active", "Enter the PIN on the lock screen to unlock.");
+    }
 
     public void DisposeShell()
     {
@@ -120,6 +228,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _tray?.Dispose();
         _tray = null;
 
+        _usbDrive.Configure(false, null);
+        _usbDrive.Dispose();
         _hotkeys.Dispose();
     }
 
@@ -128,11 +238,21 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     /// <summary>Set from the command line; applies to the next freeze, then clears.</summary>
     public FreezeMode? ModeOverride { get; set; }
 
-    private void StartFreeze()
+    private void StartFreeze() => StartFreezeCore(fromUsb: false);
+
+    private void StartFreezeCore(bool fromUsb)
     {
+        if (_usbWatching && !fromUsb)
+        {
+            StopUsbWatching();
+            return;
+        }
+
         if (_controller.IsActive)
         {
-            _controller.Release(FreezeEndReason.UserUnlocked);
+            if (!_controller.RequestRelease(FreezeEndReason.UserUnlocked))
+                _tray?.ShowBalloon("PIN lock is active", "Enter the PIN on the lock screen to unlock.");
+
             return;
         }
 
@@ -141,7 +261,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         var mode = ModeOverride ?? _settings.Mode;
         ModeOverride = null;
 
-        switch (_controller.TryStart(mode))
+        if (mode == FreezeMode.UsbKey)
+        {
+            StartUsbWatching();
+            return;
+        }
+
+        switch (_controller.TryStart(mode, allowUnlockHotkey: !fromUsb))
         {
             case StartResult.NeedsElevation:
                 PromptElevation();
@@ -159,6 +285,102 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     "FrostLock could not engage the input blocker. Another program may already be blocking input.",
                     "FrostLock", MessageBoxButton.OK, MessageBoxImage.Warning);
                 break;
+        }
+    }
+
+    private void StartUsbWatching()
+    {
+        if (UsbDriveBox.SelectedItem is not UsbDriveOption selected)
+        {
+            RefreshUsbDrives();
+            UsbWatchStatus.Text = "Connect a removable USB drive, select it, then start watching.";
+            if (!IsVisible) ShowFromTray();
+            return;
+        }
+
+        _usbDrive.Configure(true, selected.VolumeSerial);
+        _usbReverseBehavior = UsbBehaviorBox.SelectedIndex == 1;
+        _usbWatching = true;
+        _usbFreezeActive = false;
+        UsbDriveBox.IsEnabled = false;
+        BtnRefreshUsbDrives.IsEnabled = false;
+        UsbBehaviorBox.IsEnabled = false;
+        _tray?.SetUsbWatching(true);
+        UpdateUsbWatchStatus();
+        UpdateStatusIdle();
+    }
+
+    private void StopUsbWatching()
+    {
+        if (!_usbWatching) return;
+
+        _usbWatching = false;
+        _usbDrive.Configure(false, null);
+        UsbDriveBox.IsEnabled = true;
+        BtnRefreshUsbDrives.IsEnabled = true;
+        UsbBehaviorBox.IsEnabled = true;
+        _tray?.SetUsbWatching(false);
+
+        if (_usbFreezeActive && _controller.IsActive)
+        {
+            _usbFreezeActive = false;
+            _controller.RequestRelease(FreezeEndReason.UserUnlocked);
+        }
+        else
+        {
+            _usbFreezeActive = false;
+        }
+
+        UsbWatchStatus.Text = "USB watching stopped.";
+        UpdateStatusIdle();
+    }
+
+    private void RefreshUsbDrives_Click(object sender, RoutedEventArgs e) => RefreshUsbDrives();
+
+    private void RefreshUsbDrives()
+    {
+        var selectedSerial = (UsbDriveBox.SelectedItem as UsbDriveOption)?.VolumeSerial;
+        UsbDriveBox.ItemsSource = UsbDriveService.GetAvailableDrives();
+        if (!string.IsNullOrWhiteSpace(selectedSerial))
+            UsbDriveBox.SelectedValue = selectedSerial;
+        if (UsbDriveBox.SelectedIndex < 0 && UsbDriveBox.Items.Count > 0)
+            UsbDriveBox.SelectedIndex = 0;
+
+        UpdateUsbWatchStatus();
+    }
+
+    private void UpdateUsbWatchStatus()
+    {
+        var selected = UsbDriveBox.SelectedItem as UsbDriveOption;
+        if (!_usbWatching)
+        {
+            UsbWatchStatus.Text = selected is null
+                ? "Not watching. Connect and select a removable drive."
+                : $"Ready to watch {selected.DisplayName}.";
+            return;
+        }
+
+        var driveName = selected?.DisplayName ?? "USB drive";
+        if (_usbFreezeActive)
+        {
+            UsbWatchStatus.Text = $"Watching {driveName}. " +
+                                  (_usbReverseBehavior
+                                      ? "Insert it to release the freeze, or stop watching."
+                                      : "Remove it to release the freeze, or stop watching.");
+        }
+        else if (_usbReverseBehavior)
+        {
+            UsbWatchStatus.Text = $"Watching {driveName}. " +
+                                  (_usbDrive.TargetPresent
+                                      ? "Remove it to start a freeze."
+                                      : "Connect it, then remove it to start a freeze.");
+        }
+        else
+        {
+            UsbWatchStatus.Text = $"Watching {driveName}. " +
+                                  (_usbDrive.TargetPresent
+                                      ? "Remove and reinsert it to start a freeze."
+                                      : "Insert it to freeze; remove it to release.");
         }
     }
 
@@ -200,7 +422,18 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private void ExitApplication()
     {
+        if (_controller.RequiresPin)
+        {
+            _tray?.ShowBalloon("PIN lock is active",
+                "Enter the PIN on the lock screen before exiting.");
+            return;
+        }
+
         _exiting = true;
+
+        if (_controller.IsActive)
+            _controller.Release(FreezeEndReason.Shutdown);
+
         System.Windows.Application.Current.Shutdown();
     }
 
@@ -211,22 +444,38 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _wasVisibleBeforeFreeze = IsVisible;
         if (IsVisible) Hide();
 
+        try { _settingsWindow?.Close(); } catch { /* ignore */ }
+        _settingsWindow = null;
+
+        try { _aboutWindow?.Close(); } catch { /* ignore */ }
+        _aboutWindow = null;
+
         BtnFreeze.ToolTip = null;
         ModeBox.ToolTip = null;
 
-        _tray?.SetFrozen(true);
+        _tray?.SetFrozen(true, !_controller.RequiresPin);
     }
 
     private void OnFreezeEnded(object? sender, FreezeEndedEventArgs e)
     {
+        _usbFreezeActive = false;
         _tray?.SetFrozen(false);
+        _tray?.SetUsbWatching(_usbWatching);
         UpdateStatusIdle();
         UpdateStats();
 
         if (_wasVisibleBeforeFreeze && !_exiting)
         {
             ShowFromTray();
-            _tray?.ShowBalloon("Freeze released", $"Input is yours again after {FormatDuration(e.Elapsed)}.");
+
+            var body = e.Reason switch
+            {
+                FreezeEndReason.Aborted => "The freeze was cancelled before it started.",
+                FreezeEndReason.Watchdog => "Input was released because FrostLock stopped responding.",
+                _ => $"Input is yours again after {FormatDuration(e.Elapsed)}."
+            };
+
+            _tray?.ShowBalloon("Freeze released", body);
         }
     }
 
@@ -249,7 +498,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         BtnFreeze.Content = arming ? "Cancel freeze" : "Release now";
 
-        _tray?.SetFrozen(true);
+        _tray?.SetFrozen(true, !state.RequiresPin);
         _tray?.SetTooltip($"FrostLock — {state.ModeLabel}: {StatusDetail.Text}");
     }
 
@@ -329,6 +578,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         if (ModeBox.SelectedItem is not ComboBoxItem { Tag: not null } item) return;
         if (!Enum.TryParse<FreezeMode>(item.Tag.ToString(), out var mode)) return;
 
+        if (_usbWatching && mode != FreezeMode.UsbKey)
+            StopUsbWatching();
+
         _settings.Mode = mode;
         SaveSettings();
         UpdateModePresentation();
@@ -362,6 +614,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         ChkSystemKeys.IsChecked = _settings.BlockSystemKeys;
         ChkKeepAwake.IsChecked = _settings.KeepDisplayAwake;
 
+        RefreshUsbDrives();
+
         _loading = false;
 
         UpdateModePresentation();
@@ -389,6 +643,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         var mode = _settings.Mode;
 
         StrictOptions.Visibility = mode == FreezeMode.Strict ? Visibility.Visible : Visibility.Collapsed;
+        UsbWatchPanel.Visibility = mode == FreezeMode.UsbKey ? Visibility.Visible : Visibility.Collapsed;
 
         ModeDescription.Text = mode switch
         {
@@ -400,6 +655,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 "A lock screen that needs your PIN. Typing and the mouse still work, but Windows shortcuts are suppressed.",
             FreezeMode.Hard =>
                 "Freezes input at the OS level with BlockInput. Requires administrator rights.",
+            FreezeMode.UsbKey =>
+                "Watches one removable USB drive. Choose whether insertion or removal freezes and releases; select the drive and start watching.",
             _ => string.Empty
         };
 
@@ -407,6 +664,12 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         PinNotice.IsOpen = mode == FreezeMode.Pin && !_settings.HasPin;
 
         UpdateFreezeToolTip();
+    }
+
+    private void ModeComparison_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ModeComparisonWindow { Owner = this };
+        dialog.ShowDialog();
     }
 
     private void UpdateFreezeToolTip()
@@ -457,13 +720,40 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         if (_controller.IsActive) return;
 
+        if (_usbWatching)
+        {
+            StatusIcon.Symbol = Wpf.Ui.Controls.SymbolRegular.UsbStick24;
+            StatusTitle.Text = "Watching USB drive";
+            StatusDetail.Text = _usbFreezeActive
+                ? _usbReverseBehavior
+                    ? "USB-triggered freeze is active. Insert the drive to release."
+                    : "USB-triggered freeze is active. Remove the drive to release."
+                : _usbDrive.TargetPresent
+                    ? _usbReverseBehavior
+                        ? "Drive is connected. Remove it to start a freeze."
+                        : "Drive is still connected. Remove and reinsert it to trigger a freeze."
+                    : _usbReverseBehavior
+                        ? "Connect and remove the selected drive to start a freeze."
+                        : "Waiting for the selected drive to be inserted.";
+            StatusTime.Text = string.Empty;
+            BtnFreeze.Content = "Stop watching";
+            BtnFreeze.ToolTip = "Stop USB monitoring and release a USB-triggered freeze, if active.";
+            UpdateUsbWatchStatus();
+            return;
+        }
+
         StatusIcon.Symbol = Wpf.Ui.Controls.SymbolRegular.LockOpen24;
-        StatusTitle.Text = "Ready to freeze";
-        StatusDetail.Text = "Keyboard and mouse are yours.";
-        StatusTime.Text = _settings.IsIndefinite
-            ? "∞"
-            : FormatDuration(TimeSpan.FromSeconds(_settings.DurationSeconds));
-        BtnFreeze.Content = "Freeze input now";
+        StatusTitle.Text = _settings.Mode == FreezeMode.UsbKey ? "USB key mode ready" : "Ready to freeze";
+        StatusDetail.Text = _settings.Mode == FreezeMode.UsbKey
+            ? "Select a removable USB drive and start watching."
+            : "Keyboard and mouse are yours.";
+        StatusTime.Text = _settings.Mode == FreezeMode.UsbKey
+            ? string.Empty
+            : _settings.IsIndefinite
+                ? "∞"
+                : FormatDuration(TimeSpan.FromSeconds(_settings.DurationSeconds));
+        BtnFreeze.Content = _settings.Mode == FreezeMode.UsbKey ? "Start watching" : "Freeze input now";
+        BtnFreeze.ToolTip = null;
         UpdateFreezeToolTip();
     }
 
@@ -507,7 +797,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         // While the settings window is open the global start hotkey is released, so a
         // combination can be recorded without launching a freeze in the middle of it.
-        if (_settingsHotkeysSuspended) return null;
+        // USB key mode is controlled by the selected drive and Stop watching instead.
+        if (_settingsHotkeysSuspended || _settings.Mode == FreezeMode.UsbKey) return null;
 
         if (Hotkeys.TryParse(_settings.StartHotkey, out var binding) && binding.IsValid)
         {
@@ -522,6 +813,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private void OpenSettings(SettingsSection section)
     {
+        if (_controller.IsActive)
+        {
+            _tray?.ShowBalloon("Freeze is active",
+                "Settings are locked until the freeze ends.");
+            return;
+        }
+
         if (_settingsWindow is { IsLoaded: true })
         {
             _settingsWindow.Activate();
@@ -561,6 +859,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private void OpenAbout()
     {
+        if (_controller.IsActive)
+        {
+            _tray?.ShowBalloon("Freeze is active",
+                "Updates are locked until the freeze ends.");
+            return;
+        }
+
         if (_aboutWindow is { IsLoaded: true })
         {
             _aboutWindow.Activate();

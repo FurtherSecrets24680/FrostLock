@@ -20,7 +20,9 @@ public partial class AboutWindow : Wpf.Ui.Controls.FluentWindow
     private readonly string _publisher;
     private readonly string _role;
     private bool _sizeLocked;
-    private bool _updateAvailable;
+    private UpdateCheckResult? _update;
+    private CancellationTokenSource? _downloadCts;
+    private bool _downloading;
 
     public AboutWindow()
     {
@@ -53,7 +55,12 @@ public partial class AboutWindow : Wpf.Ui.Controls.FluentWindow
 
         PreviewKeyDown += (_, e) =>
         {
-            if (e.Key == Key.Escape) Close();
+            if (e.Key == Key.Escape && !_downloading) Close();
+        };
+
+        Closing += (_, _) =>
+        {
+            try { _downloadCts?.Cancel(); } catch { /* ignore */ }
         };
 
         ContentRendered += (_, _) => LockSize();
@@ -128,38 +135,155 @@ public partial class AboutWindow : Wpf.Ui.Controls.FluentWindow
 
     private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
     {
-        if (_updateAvailable)
+        if (_downloading) return;
+
+        if (_update is { UpdateAvailable: true })
         {
-            OpenReleases();
+            if (string.IsNullOrWhiteSpace(_update.DownloadUrl))
+            {
+                OpenReleases();
+                return;
+            }
+
+            await DownloadAndInstallAsync(_update);
             return;
         }
 
         BtnCheckUpdates.IsEnabled = false;
         TxtUpdateStatus.Text = "Checking for updates…";
+        TxtUpdateStatus.ToolTip = null;
         TxtUpdateStatus.Visibility = Visibility.Visible;
 
         var result = await UpdateService.CheckAsync();
 
         BtnCheckUpdates.IsEnabled = true;
+        _update = result;
 
         if (!result.Succeeded)
         {
             TxtUpdateStatus.Text = "Could not check for updates.";
+            TxtUpdateStatus.ToolTip = result.Error;
             return;
         }
 
-        if (result.UpdateAvailable)
+        if (!result.UpdateAvailable)
         {
-            _updateAvailable = true;
-            TxtUpdateStatus.Text = $"Version {result.LatestVersion} is available.";
-            BtnCheckUpdates.Content = "Download";
-
-            if (BtnCheckUpdates.Icon is Wpf.Ui.Controls.SymbolIcon icon)
-                icon.Symbol = Wpf.Ui.Controls.SymbolRegular.ArrowDownload24;
+            TxtUpdateStatus.Text = $"You're up to date ({result.LatestVersion}).";
+            SetUpdateButton("Check for updates", Wpf.Ui.Controls.SymbolRegular.ArrowSync24);
             return;
         }
 
-        TxtUpdateStatus.Text = $"You're up to date ({result.LatestVersion}).";
+        if (string.IsNullOrWhiteSpace(result.DownloadUrl))
+        {
+            TxtUpdateStatus.Text =
+                $"Version {result.LatestVersion} is available, but this release has no installer.";
+            SetUpdateButton("Open release page", Wpf.Ui.Controls.SymbolRegular.ArrowDownload24);
+            OpenReleases();
+            return;
+        }
+
+        TxtUpdateStatus.Text = $"Version {result.LatestVersion} is available.";
+        SetUpdateButton("Download and install", Wpf.Ui.Controls.SymbolRegular.ArrowDownload24);
+    }
+
+    private void SetUpdateButton(string text, Wpf.Ui.Controls.SymbolRegular symbol)
+    {
+        BtnCheckUpdates.Content = text;
+
+        if (BtnCheckUpdates.Icon is Wpf.Ui.Controls.SymbolIcon icon)
+            icon.Symbol = symbol;
+    }
+
+    private async Task DownloadAndInstallAsync(UpdateCheckResult update)
+    {
+        if (update.DownloadUrl is not { Length: > 0 } url)
+        {
+            OpenReleases();
+            return;
+        }
+
+        var fileName = Path.GetFileName(
+            string.IsNullOrWhiteSpace(update.AssetName) ? "FrostLock-Setup.exe" : update.AssetName);
+
+        if (string.IsNullOrWhiteSpace(fileName)) fileName = "FrostLock-Setup.exe";
+
+        var directory = Path.Combine(Path.GetTempPath(), "FrostLock", "update");
+        var destination = Path.Combine(directory, fileName);
+
+        _downloading = true;
+        BtnCheckUpdates.IsEnabled = false;
+        UpdateProgress.Value = 0;
+        UpdateProgress.Visibility = Visibility.Visible;
+        TxtUpdateStatus.ToolTip = null;
+
+        _downloadCts?.Dispose();
+        _downloadCts = new CancellationTokenSource();
+
+        var progress = new Progress<double>(value =>
+        {
+            UpdateProgress.Value = value;
+            TxtUpdateStatus.Text = $"Downloading {fileName}… {value:P0}";
+        });
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+
+            await UpdateService.DownloadAsync(
+                url, destination, update.AssetSize, progress, _downloadCts.Token);
+
+            UpdateProgress.Value = 1;
+            TxtUpdateStatus.Text = "Download complete. Starting the installer…";
+
+            StartInstaller(destination);
+        }
+        catch (OperationCanceledException)
+        {
+            TxtUpdateStatus.Text = "The update was cancelled.";
+        }
+        catch (Exception ex)
+        {
+            UpdateProgress.Visibility = Visibility.Hidden;
+            TxtUpdateStatus.Text = "Could not download the update.";
+            TxtUpdateStatus.ToolTip = ex.Message;
+        }
+        finally
+        {
+            _downloading = false;
+            BtnCheckUpdates.IsEnabled = true;
+        }
+    }
+
+    /// <summary>
+    /// Starts the downloaded installer and closes FrostLock so the installer can replace it.
+    /// Inno Setup's CloseApplications knows how to wait for the mutex to go away.
+    /// </summary>
+    private void StartInstaller(string path)
+    {
+        // Exiting must never be a way past an active freeze, especially a PIN lock.
+        if (System.Windows.Application.Current is App { Controller.IsActive: true })
+        {
+            UpdateProgress.Visibility = Visibility.Hidden;
+            TxtUpdateStatus.Text = "Finish the current freeze before installing an update.";
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(path)
+            {
+                UseShellExecute = true,
+                Arguments = "/CLOSEAPPLICATIONS /NORESTART"
+            });
+
+            System.Windows.Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            UpdateProgress.Visibility = Visibility.Hidden;
+            TxtUpdateStatus.Text = "Could not start the installer. The download was kept.";
+            TxtUpdateStatus.ToolTip = $"{ex.Message}\n{path}";
+        }
     }
 
     private void OpenReleases()
@@ -170,7 +294,8 @@ public partial class AboutWindow : Wpf.Ui.Controls.FluentWindow
         }
         catch
         {
-            TxtUpdateStatus.Text = $"Could not open the browser. See {UpdateService.ReleasesPageUrl}";
+            TxtUpdateStatus.Text = "Could not open the browser.";
+            TxtUpdateStatus.ToolTip = UpdateService.ReleasesPageUrl;
         }
     }
 

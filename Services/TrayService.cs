@@ -15,13 +15,17 @@ public sealed class TrayService : IDisposable
     private readonly ContextMenu _menu;
     private readonly MenuItem _freezeItem;
     private readonly MenuItem _stopItem;
+    private readonly MenuItem _stopWatchingItem;
+    private readonly MenuItem _exitItem;
     private bool _frozen;
+    private bool _usbWatching;
 
     public event Action? FreezeRequested;
     public event Action? UnlockRequested;
     public event Action? ShowRequested;
     public event Action? SettingsRequested;
     public event Action? ExitRequested;
+    public event Action? StopWatchingRequested;
 
     public TrayService()
     {
@@ -31,6 +35,9 @@ public sealed class TrayService : IDisposable
         _stopItem = new MenuItem { Header = "Release freeze", IsEnabled = false };
         _stopItem.Click += (_, _) => UnlockRequested?.Invoke();
 
+        _stopWatchingItem = new MenuItem { Header = "Stop USB watching", IsEnabled = false };
+        _stopWatchingItem.Click += (_, _) => StopWatchingRequested?.Invoke();
+
         var openItem = new MenuItem { Header = "Open FrostLock" };
         openItem.Click += (_, _) => ShowRequested?.Invoke();
 
@@ -39,10 +46,12 @@ public sealed class TrayService : IDisposable
 
         var exitItem = new MenuItem { Header = "Exit" };
         exitItem.Click += (_, _) => ExitRequested?.Invoke();
+        _exitItem = exitItem;
 
         _menu = new ContextMenu();
         _menu.Items.Add(_freezeItem);
         _menu.Items.Add(_stopItem);
+        _menu.Items.Add(_stopWatchingItem);
         _menu.Items.Add(new Separator());
         _menu.Items.Add(openItem);
         _menu.Items.Add(settingsItem);
@@ -79,11 +88,17 @@ public sealed class TrayService : IDisposable
         _menu.IsOpen = true;
     }
 
-    public void SetFrozen(bool frozen)
+    /// <summary>
+    /// Updates the menu for the current freeze. <paramref name="canRelease"/> is false in
+    /// PIN mode, where the lock screen is the only way out.
+    /// </summary>
+    public void SetFrozen(bool frozen, bool canRelease = true)
     {
         _frozen = frozen;
-        _freezeItem.IsEnabled = !frozen;
-        _stopItem.IsEnabled = frozen;
+        _freezeItem.IsEnabled = !frozen && !_usbWatching;
+        _stopItem.IsEnabled = frozen && canRelease;
+        _stopItem.Header = frozen && !canRelease ? "Release with PIN" : "Release freeze";
+        _exitItem.IsEnabled = !frozen || canRelease;
         _icon.Text = frozen ? "FrostLock — input frozen" : "FrostLock — ready";
     }
 
@@ -91,6 +106,14 @@ public sealed class TrayService : IDisposable
     {
         // NotifyIcon.Text is capped at 63 characters.
         _icon.Text = text.Length > 63 ? text[..63] : text;
+    }
+
+    public void SetUsbWatching(bool watching)
+    {
+        _usbWatching = watching;
+        _freezeItem.IsEnabled = !_frozen && !watching;
+        _stopWatchingItem.IsEnabled = watching;
+        _stopWatchingItem.Header = watching ? "Stop USB watching" : "USB mode is not watching";
     }
 
     public void ShowBalloon(string title, string body)

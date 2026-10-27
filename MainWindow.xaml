@@ -152,6 +152,13 @@
                                         <TextBlock Text="PIN lock" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </ComboBoxItem>
+                                <ComboBoxItem Tag="UsbKey">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="UsbStick24" FontSize="16" Margin="0,0,8,0"
+                                                       VerticalAlignment="Center" />
+                                        <TextBlock Text="USB key" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </ComboBoxItem>
                                 <ComboBoxItem Tag="Hard"
                                               ToolTip="Requires administrator rights. While active, press Ctrl+Alt+Del to drop the OS input block, then click Unlock. A timer or safety cap can also release it.">
                                     <StackPanel Orientation="Horizontal">
@@ -166,6 +173,50 @@
                         <TextBlock x:Name="ModeDescription" Style="{StaticResource RowDescription}"
                                    Margin="28,0,0,10"
                                    Text="Full-screen lock screen with the system keys suppressed." />
+
+                        <StackPanel x:Name="UsbWatchPanel" Visibility="Collapsed" Margin="28,0,0,10">
+                            <TextBlock Text="Choose a connected removable drive and select which action freezes or releases. USB key mode uses a Strict freeze."
+                                       Style="{StaticResource RowDescription}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,8" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="UsbDriveBox"
+                                          DisplayMemberPath="DisplayName"
+                                          SelectedValuePath="VolumeSerial"
+                                          VerticalAlignment="Center" />
+                                <ui:Button x:Name="BtnRefreshUsbDrives" Grid.Column="1"
+                                           Content="Refresh"
+                                           Margin="8,0,0,0"
+                                           Click="RefreshUsbDrives_Click" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="USB behavior" Style="{StaticResource RowTitle}"
+                                           VerticalAlignment="Center" Margin="0,0,12,0" />
+                                <ComboBox x:Name="UsbBehaviorBox" Grid.Column="1"
+                                          VerticalAlignment="Center"
+                                          SelectedIndex="0">
+                                    <ComboBoxItem Content="Plug to freeze; unplug to release" Tag="Normal" />
+                                    <ComboBoxItem Content="Plug to release; unplug to freeze" Tag="Reverse" />
+                                </ComboBox>
+                            </Grid>
+                            <TextBlock x:Name="UsbWatchStatus"
+                                       Text="Not watching."
+                                       Style="{StaticResource RowDescription}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0" />
+                            <TextBlock Text="Convenience only, not secure authentication: volume serials can be copied. USB mode cannot unlock PIN mode."
+                                       Style="{StaticResource RowDescription}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0" />
+                        </StackPanel>
 
                         <Border Style="{StaticResource Divider}" />
 
@@ -224,6 +275,15 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
+
+                <TextBlock x:Name="ModeComparisonLink"
+                           Margin="4,8,0,0"
+                           Visibility="Visible">
+                    <Hyperlink Click="ModeComparison_Click"
+                               Style="{StaticResource AppHyperlink}"
+                               Focusable="True"
+                               >Compare all locking modes</Hyperlink>
+                </TextBlock>
 
                 <ui:InfoBar x:Name="AdminNotice"
                             Severity="Warning"

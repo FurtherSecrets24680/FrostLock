@@ -1,7 +1,10 @@
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using FrostLock.Interop;
 using FrostLock.Models;
 
@@ -15,10 +18,15 @@ public partial class OverlayWindow : Window
 {
     private readonly System.Windows.Forms.Screen _screen;
     private readonly Action _onUnlock;
-    private readonly Func<string, bool>? _verifyPin;
+    private readonly Func<string, UnlockAttempt>? _verifyPin;
+    private readonly Func<string, UnlockAttempt>? _verifyPhrase;
     private readonly bool _closeRequestsUnlock;
+    private readonly string? _backgroundPath;
     private bool _pinFocused;
+    private bool _panicRevealed;
+    private bool _canCancelArm;
     private TimeSpan _pinCooldown;
+    private TimeSpan _panicCooldown;
 
     /// <summary>Set by the controller right before it closes the window.</summary>
     public bool AllowClose { get; set; }
@@ -26,18 +34,34 @@ public partial class OverlayWindow : Window
     public OverlayWindow(
         System.Windows.Forms.Screen screen,
         Action onUnlock,
-        Func<string, bool>? verifyPin = null,
+        Func<string, UnlockAttempt>? verifyPin = null,
+        Func<string, UnlockAttempt>? verifyPhrase = null,
         bool closeRequestsUnlock = true,
-        LockScreenStyle style = LockScreenStyle.Solid)
+        LockScreenStyle style = LockScreenStyle.Solid,
+        string? backgroundPath = null)
     {
         InitializeComponent();
 
         _screen = screen;
         _onUnlock = onUnlock;
         _verifyPin = verifyPin;
+        _verifyPhrase = verifyPhrase;
         _closeRequestsUnlock = closeRequestsUnlock;
+        _backgroundPath = backgroundPath;
 
         ApplyStyle(style);
+        ApplyBackground(style);
+
+        // During the arm delay the freeze is still cancellable, so Esc is a real abort.
+        // Once frozen, Esc does nothing; PIN mode keeps the PIN as the only exit.
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape && _canCancelArm)
+            {
+                e.Handled = true;
+                _onUnlock();
+            }
+        };
 
         PinBox.KeyDown += (_, e) =>
         {
@@ -45,6 +69,15 @@ public partial class OverlayWindow : Window
             {
                 e.Handled = true;
                 SubmitPin();
+            }
+        };
+
+        PanicBox.KeyDown += (_, e) =>
+        {
+            if (e.Key == System.Windows.Input.Key.Enter)
+            {
+                e.Handled = true;
+                SubmitPhrase();
             }
         };
 
@@ -63,6 +96,40 @@ public partial class OverlayWindow : Window
         Background = new SolidColorBrush(Color.FromArgb(0xCC, 0x1C, 0x1C, 0x1C));
     }
 
+    /// <summary>Loads the chosen image once, with a dark scrim so the text stays readable.</summary>
+    private void ApplyBackground(LockScreenStyle style)
+    {
+        if (style == LockScreenStyle.None || string.IsNullOrWhiteSpace(_backgroundPath))
+            return;
+
+        if (!File.Exists(_backgroundPath))
+            return;
+
+        try
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+            bitmap.UriSource = new Uri(_backgroundPath, UriKind.Absolute);
+            bitmap.EndInit();
+            bitmap.Freeze();
+
+            bool dim = style == LockScreenStyle.Dim;
+            BackdropImage.Source = bitmap;
+            BackdropImage.Opacity = dim ? 0.45 : 1.0;
+            BackdropImage.Visibility = Visibility.Visible;
+
+            BackdropScrim.Background = new SolidColorBrush(
+                Color.FromArgb(dim ? (byte)0x66 : (byte)0xB3, 0, 0, 0));
+            BackdropScrim.Visibility = Visibility.Visible;
+        }
+        catch
+        {
+            // A bad or unsupported image falls back to the plain cover.
+        }
+    }
+
     /// <summary>Sizes and pins the overlay to its monitor in physical pixels (DPI-safe).</summary>
     public void PositionToScreen()
     {
@@ -77,6 +144,7 @@ public partial class OverlayWindow : Window
     public void UpdateState(OverlayState state)
     {
         bool arming = state.Phase == FreezePhase.Arming;
+        _canCancelArm = arming;
 
         ModeText.Text = state.ModeLabel;
 
@@ -117,7 +185,16 @@ public partial class OverlayWindow : Window
         bool showUnlockAt = state.ShowClock && !arming && state.UnlockAt is not null;
         UnlockAtText.Visibility = showUnlockAt ? Visibility.Visible : Visibility.Collapsed;
         if (showUnlockAt)
-            UnlockAtText.Text = $"Unlocks at {state.UnlockAt!.Value:HH:mm}";
+        {
+            var unlockAt = state.UnlockAt!.Value;
+            var today = DateTime.Today;
+
+            UnlockAtText.Text = unlockAt.Date == today
+                ? $"Unlocks at {unlockAt:HH:mm}"
+                : unlockAt.Date == today.AddDays(1)
+                    ? $"Unlocks tomorrow at {unlockAt:HH:mm}"
+                    : $"Unlocks {unlockAt:ddd d MMM} at {unlockAt:HH:mm}";
+        }
 
         UnlockButton.Content = arming ? "Cancel freeze" : "Unlock now";
 
@@ -132,13 +209,40 @@ public partial class OverlayWindow : Window
         PinCooldown.Visibility = cooling ? Visibility.Visible : Visibility.Collapsed;
         if (cooling)
         {
-            PinCooldown.Text =
-                $"Too many attempts. Try again in {Math.Ceiling(_pinCooldown.TotalSeconds):0}s.";
+            PinCooldown.Text = CooldownText(_pinCooldown);
             PinError.Visibility = Visibility.Collapsed;
         }
 
         PinBox.IsEnabled = !cooling;
         PinSubmitButton.IsEnabled = !cooling;
+
+        // The emergency phrase is offered only where it is the only way back in: the PIN
+        // lock screen, and only when the user has configured one.
+        bool panicAvailable = pinMode && _verifyPhrase is not null && state.PanicAvailable;
+
+        PanicRevealButton.Visibility = panicAvailable && !_panicRevealed
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        PanicPanel.Visibility = panicAvailable && _panicRevealed
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        if (panicAvailable && _panicRevealed)
+        {
+            _panicCooldown = state.PanicCooldownRemaining;
+            bool panicCooling = _panicCooldown > TimeSpan.Zero;
+
+            PanicCooldown.Visibility = panicCooling ? Visibility.Visible : Visibility.Collapsed;
+            if (panicCooling)
+            {
+                PanicCooldown.Text = CooldownText(_panicCooldown);
+                PanicError.Visibility = Visibility.Collapsed;
+            }
+
+            PanicBox.IsEnabled = !panicCooling;
+            PanicSubmitButton.IsEnabled = !panicCooling;
+        }
 
         if (pinMode && !_pinFocused && !cooling)
         {
@@ -146,8 +250,6 @@ public partial class OverlayWindow : Window
             PinBox.Focus();
         }
 
-        // In Strict mode the pointer is dead once the freeze engages, so a disabled button
-        // would just be dead weight on the lock screen. Hide it and rely on the hint.
         bool strictMouseBlocked = !arming && state.MouseBlocked && state.Mode == FreezeMode.Strict;
         UnlockButton.IsEnabled = !strictMouseBlocked;
         UnlockButton.Visibility = strictMouseBlocked || pinMode
@@ -171,18 +273,99 @@ public partial class OverlayWindow : Window
     {
         if (_verifyPin is null) return;
         if (_pinCooldown > TimeSpan.Zero) return;
+        if (PinBox.Password.Length == 0) return;
 
-        if (_verifyPin(PinBox.Password))
+        var attempt = _verifyPin(PinBox.Password);
+        PinBox.Clear();
+
+        if (attempt.Success)
         {
-            PinError.Visibility = Visibility.Collapsed;
-            PinBox.Clear();
             _onUnlock();
             return;
         }
 
-        PinError.Visibility = Visibility.Visible;
-        PinBox.Clear();
         PinBox.Focus();
+
+        if (attempt.LockedOut)
+        {
+            _pinCooldown = attempt.Cooldown;
+            PinCooldown.Text = CooldownText(_pinCooldown);
+            PinCooldown.Visibility = Visibility.Visible;
+            PinError.Visibility = Visibility.Collapsed;
+            PinBox.IsEnabled = false;
+            PinSubmitButton.IsEnabled = false;
+            return;
+        }
+
+        PinError.Text = AttemptText(attempt, "PIN");
+        PinError.Visibility = Visibility.Visible;
+    }
+
+    private void PanicReveal_Click(object sender, RoutedEventArgs e)
+    {
+        if (_verifyPhrase is null) return;
+
+        _panicRevealed = true;
+        PanicRevealButton.Visibility = Visibility.Collapsed;
+        PanicPanel.Visibility = Visibility.Visible;
+        PanicBox.Clear();
+        PanicError.Visibility = Visibility.Collapsed;
+        PanicBox.Focus();
+    }
+
+    private void PanicSubmit_Click(object sender, RoutedEventArgs e) => SubmitPhrase();
+
+    private void SubmitPhrase()
+    {
+        if (_verifyPhrase is null) return;
+        if (_panicCooldown > TimeSpan.Zero) return;
+        if (PanicBox.Password.Length == 0) return;
+
+        var attempt = _verifyPhrase(PanicBox.Password);
+        PanicBox.Clear();
+
+        if (attempt.Success)
+        {
+            _onUnlock();
+            return;
+        }
+
+        PanicBox.Focus();
+
+        if (attempt.LockedOut)
+        {
+            _panicCooldown = attempt.Cooldown;
+            PanicCooldown.Text = CooldownText(_panicCooldown);
+            PanicCooldown.Visibility = Visibility.Visible;
+            PanicError.Visibility = Visibility.Collapsed;
+            PanicBox.IsEnabled = false;
+            PanicSubmitButton.IsEnabled = false;
+            return;
+        }
+
+        PanicError.Text = AttemptText(attempt, "phrase");
+        PanicError.Visibility = Visibility.Visible;
+    }
+
+    private static string AttemptText(UnlockAttempt attempt, string label)
+    {
+        if (attempt.AttemptsRemaining <= 0)
+            return $"Incorrect {label}.";
+
+        var left = attempt.AttemptsRemaining;
+        return $"Incorrect {label}. {left} attempt{(left == 1 ? string.Empty : "s")} left.";
+    }
+
+    private static string CooldownText(TimeSpan left)
+    {
+        if (left.TotalMinutes >= 1)
+        {
+            var minutes = (int)Math.Ceiling(left.TotalMinutes);
+            return $"Too many attempts. Try again in {minutes} minute{(minutes == 1 ? string.Empty : "s")}.";
+        }
+
+        var seconds = Math.Max(1, (int)Math.Ceiling(left.TotalSeconds));
+        return $"Too many attempts. Try again in {seconds} second{(seconds == 1 ? string.Empty : "s")}.";
     }
 
     protected override void OnClosing(CancelEventArgs e)

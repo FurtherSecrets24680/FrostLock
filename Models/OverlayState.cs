@@ -29,6 +29,18 @@ public sealed class OverlayState
     /// <summary>Seconds left before PIN entry is accepted again (throttling). Zero when open.</summary>
     public TimeSpan PinCooldownRemaining { get; init; }
 
+    /// <summary>Entries left before the next PIN cooldown starts.</summary>
+    public int PinAttemptsRemaining { get; init; }
+
+    /// <summary>Same as <see cref="PinCooldownRemaining"/>, for the panic phrase.</summary>
+    public TimeSpan PanicCooldownRemaining { get; init; }
+
+    /// <summary>Entries left before the next panic-phrase cooldown starts.</summary>
+    public int PanicAttemptsRemaining { get; init; }
+
+    /// <summary>True when a panic phrase is configured and can be offered on the lock screen.</summary>
+    public bool PanicAvailable { get; init; }
+
     public string UnlockHint { get; init; } = string.Empty;
     public string ModeLabel { get; init; } = string.Empty;
     public bool Interactive { get; init; } = true;

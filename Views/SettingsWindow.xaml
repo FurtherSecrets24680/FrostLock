@@ -217,7 +217,8 @@
                                 </StackPanel>
                             </Grid>
                             <ui:ToggleSwitch x:Name="ChkCheckUpdates" Grid.Column="1" VerticalAlignment="Center" />
-                        </Grid>
+                            </Grid>
+
                     </StackPanel>
                 </Border>
 
@@ -348,10 +349,42 @@
                                 </StackPanel>
                             </Grid>
                             <ui:TextBox x:Name="TxtLockMessage" Grid.Column="1"
+                                        Margin="12,0,0,0"
                                         PlaceholderText="Stay focused."
                                         MaxLength="120"
                                         VerticalAlignment="Center" />
                         </Grid>
+
+                        <Border Style="{StaticResource Divider}" />
+
+                        <Grid Margin="0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Symbol="SlideSize24" Style="{StaticResource RowIcon}" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Background image" Style="{StaticResource RowTitle}" />
+                                    <TextBlock Text="Shown behind the lock screen text. Empty keeps the plain cover."
+                                               Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
+                                </StackPanel>
+                            </Grid>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                        HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <ui:Button x:Name="BtnBrowseBackground" Content="Choose…"
+                                           Click="BrowseBackground_Click" />
+                                <ui:Button x:Name="BtnClearBackground" Content="Clear"
+                                           Click="ClearBackground_Click" Margin="8,0,0,0" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock x:Name="TxtBackgroundName" Style="{StaticResource RowDescription}"
+                                   Margin="28,0,0,10" Text="No image selected." />
 
                         <TextBlock Text="“No lock screen” blocks input without drawing anything, so leave the unlock hotkey or a timer as your way out. PIN mode always shows a lock screen."
                                    Style="{StaticResource RowDescription}"
@@ -412,6 +445,29 @@
                                           Minimum="0" Maximum="1440" SmallChange="1"
                                           VerticalAlignment="Center" />
                         </Grid>
+
+                        <Border Style="{StaticResource Divider}" />
+
+                        <Grid Margin="0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Symbol="LockClosed24" Style="{StaticResource RowIcon}" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Lock Windows when the freeze ends" Style="{StaticResource RowTitle}" />
+                                    <TextBlock Text="Locks the Windows session after the freeze. Off by default."
+                                               Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
+                                </StackPanel>
+                            </Grid>
+                            <ui:ToggleSwitch x:Name="ChkLockOnRelease" Grid.Column="1" VerticalAlignment="Center" />
+                        </Grid>
+
                     </StackPanel>
                 </Border>
 
@@ -510,7 +566,7 @@
                             </Grid>
                         </Grid>
 
-                        <TextBlock Text="At least 4 characters. Only a salted, hashed copy is stored."
+                        <TextBlock Text="At least 4 characters. Only a salted hash, wrapped for this Windows account with DPAPI, is stored."
                                    Style="{StaticResource RowDescription}"
                                    Margin="0,0,0,10" />
 
@@ -534,17 +590,90 @@
                                        Appearance="Primary"
                                        Click="SavePin_Click" />
                         </StackPanel>
+
+                        <Border Style="{StaticResource Divider}" />
+
+                        <Grid Margin="0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Symbol="Password24" Style="{StaticResource RowIcon}" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Emergency phrase" Style="{StaticResource RowTitle}" />
+                                    <TextBlock x:Name="TxtPanicStatus" Text="No phrase set."
+                                               Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
+                                </StackPanel>
+                            </Grid>
+                            <ui:Button x:Name="BtnRemovePanic" Grid.Column="1"
+                                       Content="Remove phrase"
+                                       VerticalAlignment="Center"
+                                       Click="RemovePanic_Click" />
+                        </Grid>
+
+                        <Grid Margin="0,6,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="200" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="New phrase" Style="{StaticResource RowTitle}" />
+                            <PasswordBox x:Name="PanicNewBox" Grid.Column="1"
+                                         Height="32" Padding="10,0"
+                                         VerticalContentAlignment="Center" />
+                        </Grid>
+
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="200" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Confirm phrase" Style="{StaticResource RowTitle}" />
+                            <PasswordBox x:Name="PanicConfirmBox" Grid.Column="1"
+                                         Height="32" Padding="10,0"
+                                         VerticalContentAlignment="Center" />
+                        </Grid>
+
+                        <TextBlock Text="At least 20 characters. Offered as “Forgot your PIN?” on the PIN lock screen, so a forgotten PIN does not mean killing FrostLock. Hashed and DPAPI-wrapped like the PIN; exports leave it out."
+                                   Style="{StaticResource RowDescription}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10" />
+
+                        <ui:InfoBar x:Name="PanicErrorBar"
+                                    Severity="Error"
+                                    IsClosable="False"
+                                    IsOpen="False"
+                                    Title="Phrase not saved"
+                                    Margin="0,0,0,10" />
+
+                        <ui:InfoBar x:Name="PanicOkBar"
+                                    Severity="Success"
+                                    IsClosable="False"
+                                    IsOpen="False"
+                                    Title="Phrase saved"
+                                    Message="The emergency phrase is ready."
+                                    Margin="0,0,0,10" />
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,10">
+                            <ui:Button x:Name="BtnSavePanic" Content="Save phrase"
+                                       Click="SavePanic_Click" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
                 <!-- Hotkeys -->
-                <StackPanel x:Name="HotkeysSection" Orientation="Horizontal" Margin="2,22,0,8">
-                    <ui:SymbolIcon Symbol="Keyboard24" Style="{StaticResource SectionIcon}" />
-                    <TextBlock Text="Hotkeys" Style="{StaticResource SectionHeader}" Margin="0" />
-                </StackPanel>
+                <StackPanel x:Name="HotkeysBlock">
+                    <StackPanel x:Name="HotkeysSection" Orientation="Horizontal" Margin="2,22,0,8">
+                        <ui:SymbolIcon Symbol="Keyboard24" Style="{StaticResource SectionIcon}" />
+                        <TextBlock Text="Hotkeys" Style="{StaticResource SectionHeader}" Margin="0" />
+                    </StackPanel>
 
-                <Border Style="{StaticResource CardPanel}">
-                    <StackPanel>
+                    <Border Style="{StaticResource CardPanel}">
+                        <StackPanel>
                         <Grid Margin="0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -594,8 +723,40 @@
                                         VerticalAlignment="Center"
                                         PreviewKeyDown="HotkeyBox_PreviewKeyDown" />
                         </Grid>
-                    </StackPanel>
-                </Border>
+
+                        <Border Style="{StaticResource Divider}" />
+
+                        <Grid Margin="0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="132" />
+                            </Grid.ColumnDefinitions>
+                            <Grid VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Symbol="Timer24" Style="{StaticResource RowIcon}" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Hold to unlock" Style="{StaticResource RowTitle}" />
+                                    <TextBlock Text="Seconds to hold the unlock shortcut. 0 releases immediately."
+                                               Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
+                                </StackPanel>
+                            </Grid>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                        HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <ui:NumberBox x:Name="HoldBox" Width="92"
+                                              Minimum="0" Maximum="5" SmallChange="0.25"
+                                              SpinButtonPlacementMode="Hidden"
+                                              ClearButtonEnabled="False"
+                                              VerticalAlignment="Center" />
+                                <TextBlock Text="s" Style="{StaticResource RowDescription}"
+                                           VerticalAlignment="Center" Margin="8,0,0,0" />
+                            </StackPanel>
+                        </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
 
                 <TextBlock Text="Click a hotkey field and press the combination. Modifiers are recorded automatically; Esc leaves it unchanged."
                            Style="{StaticResource RowDescription}"

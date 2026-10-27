@@ -3,14 +3,14 @@
 
 #define MyAppName "FrostLock"
 ; Keep in sync with <Version> in FrostLock.csproj.
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.3.0"
 #define MyAppPublisher "FurtherSecrets"
 #define MyAppExeName "FrostLock.exe"
 ; Keep in sync with <TargetFramework> in FrostLock.csproj. The app ships
 ; framework-dependent, so Setup installs this runtime when it is missing.
-#define DotNetMajor "8"
+#define DotNetMajor "10"
 ; Stable redirect to the latest Windows Desktop Runtime (x64) installer from Microsoft.
-#define DotNetRuntimeUrl "https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe"
+#define DotNetRuntimeUrl "https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe"
 
 [Setup]
 AppId={{A0D39D7C-ABB0-4E90-B07D-040861367521}

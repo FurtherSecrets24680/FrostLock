@@ -90,7 +90,7 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Text=".NET runtime" Style="{StaticResource RowDescription}" />
-                    <TextBlock x:Name="TxtDotNet" Grid.Column="1" Text=".NET 8" Style="{StaticResource RowValue}" />
+                    <TextBlock x:Name="TxtDotNet" Grid.Column="1" Text=".NET 10" Style="{StaticResource RowValue}" />
                 </Grid>
 
                 <Grid Margin="0,6">
@@ -169,8 +169,17 @@
 
             <TextBlock x:Name="TxtUpdateStatus" Text="Checking for updates…"
                        Style="{StaticResource RowDescription}"
+                       TextTrimming="CharacterEllipsis"
                        Visibility="Hidden"
                        Margin="0,12,0,0" />
+
+            <!-- Reserved height: showing progress never resizes the window. -->
+            <ProgressBar x:Name="UpdateProgress"
+                         Height="6"
+                         Minimum="0" Maximum="1"
+                         Value="0"
+                         Visibility="Hidden"
+                         Margin="0,8,0,0" />
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
                 <ui:Button x:Name="BtnCheckUpdates" Content="Check for updates" Click="CheckUpdates_Click">

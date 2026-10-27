@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using FrostLock.Models;
 using FrostLock.Services;
 using Microsoft.Win32;
@@ -49,8 +50,16 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
     {
         if (section == SettingsSection.Hotkeys)
         {
-            HotkeysSection.BringIntoView();
-            TxtUnlockHotkey.Focus();
+            // Opening Settings and navigating can happen in the same dispatcher turn.
+            // Wait for layout so BringIntoView has a realized position in the ScrollViewer.
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+            {
+                if (!IsLoaded || _section != SettingsSection.Hotkeys) return;
+
+                TxtUnlockHotkey.Focus();
+                Keyboard.Focus(TxtUnlockHotkey);
+                HotkeysBlock.BringIntoView();
+            }));
             return;
         }
 
@@ -76,16 +85,80 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
 
         ChkShowClock.IsChecked = _settings.ShowClockOnOverlay;
         ChkCheckUpdates.IsChecked = _settings.CheckForUpdatesOnStartup;
+        ChkLockOnRelease.IsChecked = _settings.LockWindowsOnRelease;
 
         ArmBox.Value = _settings.ArmSeconds;
         SafetyBox.Value = _settings.SafetyMaxSeconds / 60;
+        HoldBox.Value = _settings.UnlockHoldMs / 1000.0;
 
         TxtUnlockHotkey.Text = _settings.UnlockHotkey;
         TxtStartHotkey.Text = _settings.StartHotkey;
 
+        UpdateBackgroundLabel();
+
         _loading = false;
 
         LoadPinState();
+        LoadPanicState();
+    }
+
+    private void LoadPanicState()
+    {
+        TxtPanicStatus.Text = _settings.HasPanicPhrase
+            ? "A phrase is set. It appears on the PIN lock screen."
+            : "No phrase set. A forgotten PIN means killing FrostLock.";
+
+        BtnRemovePanic.IsEnabled = _settings.HasPanicPhrase;
+
+        PanicNewBox.Clear();
+        PanicConfirmBox.Clear();
+
+        PanicErrorBar.IsOpen = false;
+        PanicOkBar.IsOpen = false;
+    }
+
+    private void ShowPanicMessage(string? error)
+    {
+        PanicErrorBar.Message = error ?? string.Empty;
+        PanicErrorBar.IsOpen = !string.IsNullOrEmpty(error);
+        PanicOkBar.IsOpen = string.IsNullOrEmpty(error) && _settings.HasPanicPhrase;
+    }
+
+    private void SavePanic_Click(object sender, RoutedEventArgs e)
+    {
+        var phrase = PanicNewBox.Password;
+        var confirm = PanicConfirmBox.Password;
+
+        if (phrase.Length < 20)
+        {
+            ShowPanicMessage("Use at least 20 characters. The phrase has to be slow to type.");
+            return;
+        }
+
+        if (!string.Equals(phrase, confirm, StringComparison.Ordinal))
+        {
+            ShowPanicMessage("The two phrases do not match.");
+            return;
+        }
+
+        if (_settings.HasPin && _settings.VerifyPin(phrase))
+        {
+            ShowPanicMessage("The emergency phrase must differ from your PIN.");
+            return;
+        }
+
+        _settings.SetPanicPhrase(phrase);
+        Report(_validateAndApply());
+
+        LoadPanicState();
+        ShowPanicMessage(null);
+    }
+
+    private void RemovePanic_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.ClearPanicPhrase();
+        Report(_validateAndApply());
+        LoadPanicState();
     }
 
     private void LoadPinState()
@@ -202,6 +275,7 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         BindToggle(ChkShowClock, v => _settings.ShowClockOnOverlay = v);
         BindToggle(ChkCheckUpdates, v => _settings.CheckForUpdatesOnStartup = v);
         BindToggle(ChkPlaySound, v => _settings.PlaySound = v);
+        BindToggle(ChkLockOnRelease, v => _settings.LockWindowsOnRelease = v);
 
         TxtLockMessage.TextChanged += (_, _) =>
         {
@@ -215,8 +289,10 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         // it fires ValueChanged but not LostFocus.
         ArmBox.ValueChanged += (_, _) => CommitNumbers();
         SafetyBox.ValueChanged += (_, _) => CommitNumbers();
+        HoldBox.ValueChanged += (_, _) => CommitNumbers();
         ArmBox.LostFocus += (_, _) => CommitNumbers();
         SafetyBox.LostFocus += (_, _) => CommitNumbers();
+        HoldBox.LostFocus += (_, _) => CommitNumbers();
 
         // Dropping focus makes the boxes commit any text that was typed but never
         // confirmed, so a value set just before closing still sticks.
@@ -230,6 +306,9 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         PinConfirmBox.KeyDown += OnPinKey;
         PinNewShown.KeyDown += OnPinKey;
         PinConfirmShown.KeyDown += OnPinKey;
+
+        PanicNewBox.KeyDown += OnPanicKey;
+        PanicConfirmBox.KeyDown += OnPanicKey;
 
         PreviewKeyDown += (_, e) =>
         {
@@ -259,6 +338,48 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         _settings.LockScreenOnAllDisplays = DisplaysBox.SelectedItem is ComboBoxItem { Tag: "All" };
 
         Report(_validateAndApply());
+    }
+
+    private void BrowseBackground_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Choose a lock-screen background",
+            CheckFileExists = true,
+            Filter = "Images (*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff)|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff|All files (*.*)|*.*"
+        };
+
+        if (dialog.ShowDialog(this) != true) return;
+
+        _settings.LockScreenBackgroundPath = dialog.FileName;
+        UpdateBackgroundLabel();
+        Report(_validateAndApply());
+    }
+
+    private void ClearBackground_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.LockScreenBackgroundPath = string.Empty;
+        UpdateBackgroundLabel();
+        Report(_validateAndApply());
+    }
+
+    private void UpdateBackgroundLabel()
+    {
+        var path = _settings.LockScreenBackgroundPath;
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            TxtBackgroundName.Text = "No image selected.";
+            TxtBackgroundName.ToolTip = null;
+            BtnClearBackground.IsEnabled = false;
+            return;
+        }
+
+        BtnClearBackground.IsEnabled = true;
+        TxtBackgroundName.ToolTip = path;
+        TxtBackgroundName.Text = File.Exists(path)
+            ? Path.GetFileName(path)
+            : $"{Path.GetFileName(path)} (file not found)";
     }
 
     private void Theme_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -314,9 +435,13 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         if (SafetyBox.Value is { } minutes && !double.IsNaN(minutes))
             _settings.SafetyMaxSeconds = (int)Math.Clamp(minutes, 0d, 24d * 60d) * 60;
 
+        if (HoldBox.Value is { } hold && !double.IsNaN(hold))
+            _settings.UnlockHoldMs = (int)Math.Round(Math.Clamp(hold, 0d, 5d) * 1000);
+
         _loading = true;
         ArmBox.Value = _settings.ArmSeconds;
         SafetyBox.Value = _settings.SafetyMaxSeconds / 60;
+        HoldBox.Value = _settings.UnlockHoldMs / 1000.0;
         _loading = false;
 
         Report(_validateAndApply());
@@ -407,11 +532,20 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
+    private void OnPanicKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            SavePanic_Click(sender, e);
+            e.Handled = true;
+        }
+    }
+
     // Settings file
 
     private void EditJson_Click(object sender, RoutedEventArgs e)
     {
-        var editor = new SettingsFileWindow(_settings, ApplyImportedSettings) { Owner = this };
+        var editor = new SettingsFileWindow(_settings, s => ApplyImportedSettings(s)) { Owner = this };
 
         if (editor.ShowDialog() == true)
             ShowConfigStatus(Wpf.Ui.Controls.InfoBarSeverity.Success,
@@ -433,9 +567,11 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
 
         try
         {
-            File.WriteAllText(dialog.FileName, SettingsService.Serialize(_settings));
+            // The PIN is DPAPI-bound to this Windows account, so it is never exported. An
+            // import leaves the current PIN untouched.
+            File.WriteAllText(dialog.FileName, SettingsService.Serialize(_settings, includeSecrets: false));
             ShowConfigStatus(Wpf.Ui.Controls.InfoBarSeverity.Success,
-                "Settings exported", dialog.FileName);
+                "Settings exported", "Saved without the PIN. " + dialog.FileName);
         }
         catch (Exception ex)
         {
@@ -468,12 +604,12 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
             var answer = MessageBox.Show(this,
                 "Replace all current settings with the values from this file?\n\n" +
                 dialog.FileName + "\n\n" +
-                "This includes the PIN and lifetime statistics.",
+                "The PIN and emergency phrase already set on this PC are kept. Lifetime statistics come from the file.",
                 "Import settings", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
             if (answer != MessageBoxResult.Yes) return;
 
-            var hotkeyError = ApplyImportedSettings(imported);
+            var hotkeyError = ApplyImportedSettings(imported, preservePin: true);
 
             ShowConfigStatus(
                 hotkeyError is null ? Wpf.Ui.Controls.InfoBarSeverity.Success : Wpf.Ui.Controls.InfoBarSeverity.Warning,
@@ -505,10 +641,39 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
-    /// <summary>Applies imported settings, including the PIN and statistics, then refreshes the controls.</summary>
-    private string? ApplyImportedSettings(AppSettings imported)
+    /// <summary>
+    /// Applies imported settings, including the PIN and statistics, then refreshes the controls.
+    /// Imported files normally carry no PIN, so <paramref name="preservePin"/> keeps the one
+    /// already configured on this PC.
+    /// </summary>
+    private string? ApplyImportedSettings(AppSettings imported, bool preservePin = false)
     {
+        var pinSalt = _settings.PinSalt;
+        var pinHash = _settings.PinHash;
+        var pinFailures = _settings.PinFailures;
+        var pinLockedUntilUtc = _settings.PinLockedUntilUtc;
+        var pinLockoutLevel = _settings.PinLockoutLevel;
+        var panicSalt = _settings.PanicSalt;
+        var panicHash = _settings.PanicHash;
+        var panicFailures = _settings.PanicFailures;
+        var panicLockedUntilUtc = _settings.PanicLockedUntilUtc;
+        var panicLockoutLevel = _settings.PanicLockoutLevel;
+
         _settings.CopyFrom(imported, includeStats: true);
+
+        if (preservePin)
+        {
+            _settings.PinSalt = pinSalt;
+            _settings.PinHash = pinHash;
+            _settings.PinFailures = pinFailures;
+            _settings.PinLockedUntilUtc = pinLockedUntilUtc;
+            _settings.PinLockoutLevel = pinLockoutLevel;
+            _settings.PanicSalt = panicSalt;
+            _settings.PanicHash = panicHash;
+            _settings.PanicFailures = panicFailures;
+            _settings.PanicLockedUntilUtc = panicLockedUntilUtc;
+            _settings.PanicLockoutLevel = panicLockoutLevel;
+        }
 
         ThemeService.Apply(_settings.Theme);
 

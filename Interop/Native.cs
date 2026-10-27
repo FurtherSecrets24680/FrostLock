@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace FrostLock.Interop;
 
-/// <summary>Thin P/Invoke surface. Nothing here executes target code; it only calls documented Win32 APIs.</summary>
+/// <summary>Win32 API declarations used by FrostLock.</summary>
 internal static class Native
 {
     // Input freezing
@@ -112,4 +112,103 @@ internal static class Native
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool MessageBeep(uint uType);
+
+    // Session lock on release
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool LockWorkStation();
+
+    // DPAPI: keep the PIN hash unreadable in the settings file.
+    internal const uint CRYPTPROTECT_UI_FORBIDDEN = 0x1;
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct DATA_BLOB
+    {
+        public int cbData;
+        public IntPtr pbData;
+    }
+
+    [DllImport("crypt32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CryptProtectData(
+        ref DATA_BLOB pDataIn, string? szDataDescr, IntPtr pOptionalEntropy,
+        IntPtr pvReserved, IntPtr pPromptStruct, uint dwFlags, out DATA_BLOB pDataOut);
+
+    [DllImport("crypt32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CryptUnprotectData(
+        ref DATA_BLOB pDataIn, out IntPtr ppszDataDescr, IntPtr pOptionalEntropy,
+        IntPtr pvReserved, IntPtr pPromptStruct, uint dwFlags, out DATA_BLOB pDataOut);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr hMem);
+
+    internal static byte[]? DpapiProtect(byte[] data, byte[] entropy)
+        => DpapiTransform(data, entropy, protect: true);
+
+    internal static byte[]? DpapiUnprotect(byte[] data, byte[] entropy)
+        => DpapiTransform(data, entropy, protect: false);
+
+    private static byte[]? DpapiTransform(byte[] data, byte[] entropy, bool protect)
+    {
+        if (data.Length == 0) return null;
+
+        var dataHandle = Marshal.AllocHGlobal(data.Length);
+        var entropyDataHandle = IntPtr.Zero;
+        var entropyBlobHandle = IntPtr.Zero;
+
+        try
+        {
+            Marshal.Copy(data, 0, dataHandle, data.Length);
+
+            // pOptionalEntropy is a DATA_BLOB pointer, not a raw byte pointer. Marshalling
+            // raw bytes here makes CryptProtectData fail with ERROR_INVALID_PARAMETER.
+            if (entropy.Length > 0)
+            {
+                entropyDataHandle = Marshal.AllocHGlobal(entropy.Length);
+                Marshal.Copy(entropy, 0, entropyDataHandle, entropy.Length);
+
+                var entropyBlob = new DATA_BLOB { cbData = entropy.Length, pbData = entropyDataHandle };
+                entropyBlobHandle = Marshal.AllocHGlobal(Marshal.SizeOf<DATA_BLOB>());
+                Marshal.StructureToPtr(entropyBlob, entropyBlobHandle, fDeleteOld: false);
+            }
+
+            var input = new DATA_BLOB { cbData = data.Length, pbData = dataHandle };
+
+            bool ok;
+            DATA_BLOB output;
+            IntPtr description = IntPtr.Zero;
+
+            if (protect)
+            {
+                ok = CryptProtectData(ref input, "FrostLock PIN", entropyBlobHandle,
+                    IntPtr.Zero, IntPtr.Zero, CRYPTPROTECT_UI_FORBIDDEN, out output);
+            }
+            else
+            {
+                ok = CryptUnprotectData(ref input, out description, entropyBlobHandle,
+                    IntPtr.Zero, IntPtr.Zero, CRYPTPROTECT_UI_FORBIDDEN, out output);
+            }
+
+            try
+            {
+                if (!ok) return null;
+
+                var result = new byte[output.cbData];
+                Marshal.Copy(output.pbData, result, 0, output.cbData);
+                return result;
+            }
+            finally
+            {
+                if (output.pbData != IntPtr.Zero) LocalFree(output.pbData);
+                if (description != IntPtr.Zero) LocalFree(description);
+            }
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(dataHandle);
+            if (entropyDataHandle != IntPtr.Zero) Marshal.FreeHGlobal(entropyDataHandle);
+            if (entropyBlobHandle != IntPtr.Zero) Marshal.FreeHGlobal(entropyBlobHandle);
+        }
+    }
 }

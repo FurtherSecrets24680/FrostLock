@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using FrostLock.Models;
 
@@ -10,6 +11,8 @@ public static class SettingsService
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FrostLock");
 
     private static readonly string FilePath = Path.Combine(Dir, "settings.json");
+    private static readonly string BackupPath = Path.Combine(Dir, "settings.json.bak");
+    private static readonly string TempPath = Path.Combine(Dir, "settings.json.tmp");
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -22,29 +25,57 @@ public static class SettingsService
 
     public static AppSettings Load()
     {
-        try
+        foreach (var path in new[] { FilePath, BackupPath })
         {
-            if (File.Exists(FilePath))
+            try
             {
-                var json = File.ReadAllText(FilePath);
+                if (!File.Exists(path)) continue;
+
+                var json = File.ReadAllText(path);
                 if (TryParse(json, out var loaded, out _))
                     return loaded;
             }
-        }
-        catch
-        {
-            // A corrupt settings file must never stop the app from starting.
+            catch
+            {
+            }
         }
 
         return new AppSettings();
     }
 
+    /// <summary>Writes settings through a temporary file and keeps a backup.</summary>
     public static void Save(AppSettings settings)
     {
         try
         {
             Directory.CreateDirectory(Dir);
-            File.WriteAllText(FilePath, Serialize(settings));
+
+            var json = Serialize(settings);
+            var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(json);
+
+            using (var stream = new FileStream(TempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(bytes, 0, bytes.Length);
+                stream.Flush(flushToDisk: true);
+            }
+
+            if (File.Exists(FilePath))
+            {
+                try
+                {
+                    File.Replace(TempPath, FilePath, BackupPath, ignoreMetadataErrors: true);
+                }
+                catch
+                {
+                    // Some filesystems do not support Replace; fall back to a copy.
+                    File.Copy(TempPath, FilePath, overwrite: true);
+                    try { File.Delete(TempPath); } catch { /* ignore */ }
+                }
+            }
+            else
+            {
+                File.Move(TempPath, FilePath);
+            }
         }
         catch
         {
@@ -52,7 +83,26 @@ public static class SettingsService
         }
     }
 
-    public static string Serialize(AppSettings settings) => JsonSerializer.Serialize(settings, Options);
+    /// <summary>
+    /// Serializes settings, optionally omitting PIN and emergency-phrase data.
+    /// </summary>
+    public static string Serialize(AppSettings settings, bool includeSecrets = true)
+    {
+        var copy = settings.Clone();
+
+        if (includeSecrets)
+        {
+            copy.PinHash = PinService.Protect(copy.PinHash);
+            copy.PanicHash = PinService.Protect(copy.PanicHash);
+        }
+        else
+        {
+            copy.ClearPin();
+            copy.ClearPanicPhrase();
+        }
+
+        return JsonSerializer.Serialize(copy, Options);
+    }
 
     /// <summary>
     /// Parses and normalizes JSON settings from disk, the editor, or an import file.
@@ -105,15 +155,46 @@ public static class SettingsService
         if (s.SafetyMaxSeconds < 0) s.SafetyMaxSeconds = 0;
         if (s.FreezeCount < 0) s.FreezeCount = 0;
         if (s.TotalFrozenSeconds < 0) s.TotalFrozenSeconds = 0;
+        if (s.PinFailures < 0) s.PinFailures = 0;
+        if (s.PanicFailures < 0) s.PanicFailures = 0;
+        if (s.UnlockHoldMs < 0) s.UnlockHoldMs = 0;
+        if (s.UnlockHoldMs > 5000) s.UnlockHoldMs = 5000;
+
+        s.PinLockoutLevel = Math.Clamp(s.PinLockoutLevel, 0, PinThrottle.MaxLockoutLevel);
+        s.PanicLockoutLevel = Math.Clamp(s.PanicLockoutLevel, 0, PinThrottle.MaxLockoutLevel);
+
+        s.PinLockedUntilUtc = NormalizeLockout(s.PinLockedUntilUtc, s.PinLockoutLevel);
+        s.PanicLockedUntilUtc = NormalizeLockout(s.PanicLockedUntilUtc, s.PanicLockoutLevel);
+
         s.LockScreenMessage ??= string.Empty;
+        s.LockScreenBackgroundPath = (s.LockScreenBackgroundPath ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(s.UnlockHotkey)) s.UnlockHotkey = "Ctrl+Alt+U";
         if (string.IsNullOrWhiteSpace(s.StartHotkey)) s.StartHotkey = "Ctrl+Alt+L";
 
-        if (string.IsNullOrWhiteSpace(s.PinSalt) || string.IsNullOrWhiteSpace(s.PinHash))
-        {
-            s.PinSalt = null;
-            s.PinHash = null;
-        }
+        (s.PinSalt, s.PinHash) = NormalizeSecret(s.PinSalt, s.PinHash);
+        (s.PanicSalt, s.PanicHash) = NormalizeSecret(s.PanicSalt, s.PanicHash);
+
+        s.SettingsVersion = 5;
+    }
+
+    private static DateTime? NormalizeLockout(DateTime? lockedUntil, int level)
+    {
+        if (lockedUntil is not { } value) return null;
+        if (value <= DateTime.UtcNow) return null;
+
+        var max = DateTime.UtcNow + PinThrottle.CooldownFor(level);
+        return value > max ? max : value;
+    }
+
+    /// <summary>
+    /// Drops a secret hash that cannot be unwrapped on this Windows account.
+    /// </summary>
+    private static (string? Salt, string? Hash) NormalizeSecret(string? salt, string? hash)
+    {
+        if (string.IsNullOrWhiteSpace(salt) || string.IsNullOrWhiteSpace(hash))
+            return (null, null);
+
+        return PinService.Unprotect(hash) is null ? (null, null) : (salt, hash);
     }
 
     public static string SettingsDirectory => Dir;
