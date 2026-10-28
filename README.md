@@ -190,3 +190,13 @@ FrostLock/
 FrostLock is inspired by [KeyFreeze](https://keyfreeze.com/), a small utility that blocks input without locking the screen. FrostLock rebuilds that idea as a Windows app with a countdown, a PIN, and more than one route out of a freeze.
 
 Built with [WPF-UI](https://github.com/lepoco/wpfui) on .NET 10.
+
+## License
+
+FrostLock is free software under the [GNU General Public License v3.0](LICENSE). You may run it, study it, share it, and modify it. If you distribute a modified version, it has to stay under the GPL and include the source.
+
+The FrostLock name, icon, and branding are not part of that license. Forked builds must not present themselves as the official release.
+
+Third-party components keep their own licenses: [WPF-UI](https://github.com/lepoco/wpfui) is MIT, and the .NET Desktop Runtime is MIT.
+
+The software comes with no warranty. FrostLock blocks keyboard and mouse input, so read [Limitations](#limitations) and test a short freeze before depending on it.
