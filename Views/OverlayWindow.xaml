@@ -184,13 +184,34 @@
                 </StackPanel>
             </StackPanel>
 
-            <ui:Button x:Name="UnlockButton"
-                       Content="Unlock now"
-                       Appearance="Primary"
-                       Height="40" MinWidth="200"
-                       Margin="0,28,0,0"
+            <StackPanel x:Name="ActionPanel"
+                        Orientation="Horizontal"
+                        Margin="0,28,0,0"
+                        HorizontalAlignment="Center">
+                <ui:Button x:Name="UnlockButton"
+                           Content="Unlock now"
+                           Appearance="Primary"
+                           Height="40" MinWidth="200"
+                           HorizontalAlignment="Center"
+                           Click="UnlockButton_Click" />
+
+                <ui:Button x:Name="ExtendButton"
+                           Content="+5 min"
+                           Height="40" MinWidth="120"
+                           Margin="10,0,0,0"
+                           HorizontalAlignment="Center"
+                           Visibility="Collapsed"
+                           Click="ExtendButton_Click" />
+            </StackPanel>
+
+            <TextBlock x:Name="ExtendHintText"
+                       Foreground="#FF9C9C9C"
+                       FontSize="12"
+                       Margin="0,10,0,0"
+                       MaxWidth="660"
+                       TextAlignment="Center" TextWrapping="Wrap"
                        HorizontalAlignment="Center"
-                       Click="UnlockButton_Click" />
+                       Visibility="Collapsed" />
 
             <TextBlock x:Name="SafetyText"
                        Text="Ctrl+Alt+Del always reaches the Windows security screen."

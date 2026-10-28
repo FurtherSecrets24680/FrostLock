@@ -18,6 +18,7 @@ public partial class OverlayWindow : Window
 {
     private readonly System.Windows.Forms.Screen _screen;
     private readonly Action _onUnlock;
+    private readonly Action? _onExtend;
     private readonly Func<string, UnlockAttempt>? _verifyPin;
     private readonly Func<string, UnlockAttempt>? _verifyPhrase;
     private readonly bool _closeRequestsUnlock;
@@ -34,6 +35,7 @@ public partial class OverlayWindow : Window
     public OverlayWindow(
         System.Windows.Forms.Screen screen,
         Action onUnlock,
+        Action? onExtend = null,
         Func<string, UnlockAttempt>? verifyPin = null,
         Func<string, UnlockAttempt>? verifyPhrase = null,
         bool closeRequestsUnlock = true,
@@ -44,6 +46,7 @@ public partial class OverlayWindow : Window
 
         _screen = screen;
         _onUnlock = onUnlock;
+        _onExtend = onExtend;
         _verifyPin = verifyPin;
         _verifyPhrase = verifyPhrase;
         _closeRequestsUnlock = closeRequestsUnlock;
@@ -255,6 +258,22 @@ public partial class OverlayWindow : Window
         UnlockButton.Visibility = strictMouseBlocked || pinMode
             ? Visibility.Collapsed
             : Visibility.Visible;
+
+        ExtendButton.Content = $"+{state.ExtendMinutes} min";
+        ExtendButton.IsEnabled = !state.MouseBlocked;
+        ExtendButton.Visibility = !arming && state.CanExtend && !state.MouseBlocked
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        ExtendHintText.Text = state.ExtendHint;
+        ExtendHintText.Visibility = !arming && state.CanExtend && state.ExtendHint.Length > 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        ActionPanel.Visibility = UnlockButton.Visibility == Visibility.Visible
+                                 || ExtendButton.Visibility == Visibility.Visible
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private static string Format(TimeSpan value)
@@ -266,6 +285,8 @@ public partial class OverlayWindow : Window
     }
 
     private void UnlockButton_Click(object sender, RoutedEventArgs e) => _onUnlock();
+
+    private void ExtendButton_Click(object sender, RoutedEventArgs e) => _onExtend?.Invoke();
 
     private void PinSubmit_Click(object sender, RoutedEventArgs e) => SubmitPin();
 

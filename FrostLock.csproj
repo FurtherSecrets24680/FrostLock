@@ -13,7 +13,11 @@
     <Product>FrostLock</Product>
     <AssemblyTitle>FrostLock</AssemblyTitle>
     <Company>FurtherSecrets</Company>
-    <Version>1.3.0</Version>
+    <Copyright>Copyright (C) 2026 FurtherSecrets</Copyright>
+    <Version>1.4.0</Version>
+    <RepositoryUrl>https://github.com/FurtherSecrets24680/FrostLock</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/FurtherSecrets24680/FrostLock</PackageProjectUrl>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\frostlock.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -31,8 +35,19 @@
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests/**" />
+    <Page Remove="tests/**" />
+    <None Remove="tests/**" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FrostLock.Tests" />
   </ItemGroup>
 
 </Project>

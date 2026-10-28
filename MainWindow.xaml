@@ -241,6 +241,7 @@
                                 <ComboBoxItem Content="5 minutes" Tag="300" />
                                 <ComboBoxItem Content="15 minutes" Tag="900" />
                                 <ComboBoxItem Content="Until I unlock" Tag="0" />
+                                <ComboBoxItem Content="Until a time…" Tag="Until" />
                                 <ComboBoxItem Content="Custom…" Tag="Custom" />
                             </ComboBox>
                         </Grid>
@@ -271,6 +272,31 @@
                                     <TextBlock Text="min" Style="{StaticResource RowDescription}"
                                                VerticalAlignment="Center" Margin="8,0,0,0" />
                                 </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel x:Name="UntilRow" Visibility="Collapsed">
+                            <Border Style="{StaticResource Divider}" />
+                            <Grid Margin="0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="210" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Unlock time" Style="{StaticResource RowTitle}" />
+                                    <TextBlock x:Name="UntilPreview"
+                                               Text="Choose the time input comes back."
+                                               Style="{StaticResource RowDescription}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,1,0,0" />
+                                </StackPanel>
+                                <ui:TimePicker x:Name="UntilPicker"
+                                               Grid.Column="1"
+                                               Width="132"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               ClockIdentifier="Clock24Hour"
+                                               MinuteIncrement="1" />
                             </Grid>
                         </StackPanel>
                     </StackPanel>
@@ -419,9 +445,10 @@
                                            ToolTip="Open the hotkey settings">Hotkeys</Hyperlink>
                             </TextBlock>
                             <TextBlock x:Name="TxtHotkeys" Grid.Column="2"
-                                       Text="Start Ctrl+Alt+L · Unlock Ctrl+Alt+U"
+                                       Text="Start Ctrl+Alt+L · Unlock Ctrl+Alt+U · Extend Ctrl+Alt+E"
                                        Style="{StaticResource RowDescription}"
                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       TextWrapping="Wrap"
                                        VerticalAlignment="Center" />
                         </Grid>
 

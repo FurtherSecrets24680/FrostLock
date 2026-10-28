@@ -710,6 +710,32 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Symbol="Timer24" Style="{StaticResource RowIcon}" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Extend freeze" Style="{StaticResource RowTitle}" />
+                                    <TextBlock Text="Adds five minutes while a timed freeze is active."
+                                               Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
+                                </StackPanel>
+                            </Grid>
+                            <ui:TextBox x:Name="TxtExtendHotkey" Grid.Column="1"
+                                        PlaceholderText="Ctrl+Alt+E"
+                                        IsReadOnly="True"
+                                        VerticalAlignment="Center"
+                                        PreviewKeyDown="HotkeyBox_PreviewKeyDown" />
+                        </Grid>
+
+                        <Border Style="{StaticResource Divider}" />
+
+                        <Grid Margin="0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="200" />
+                            </Grid.ColumnDefinitions>
+                            <Grid VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
                                 <ui:SymbolIcon Symbol="Play24" Style="{StaticResource RowIcon}" />
                                 <StackPanel Grid.Column="1">
                                     <TextBlock Text="Start a freeze" Style="{StaticResource RowTitle}" />

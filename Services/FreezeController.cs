@@ -50,11 +50,17 @@ public sealed class FreezeController : IDisposable
     private readonly List<OverlayWindow> _overlays = new();
     private DispatcherTimer? _timer;
 
+    private static readonly TimeSpan ExtendStep = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan MaxFreeze = TimeSpan.FromHours(24);
+    private static readonly TimeSpan ExtendDebounce = TimeSpan.FromMilliseconds(350);
+
     private FreezePhase _phase = FreezePhase.Idle;
     private FreezeMode _mode = FreezeMode.Gentle;
     private bool _allowUnlockHotkey = true;
     private TimeSpan? _planned;
     private TimeSpan _cap = TimeSpan.Zero;
+    private HotkeyBinding _extendBinding = HotkeyBinding.None;
+    private DateTime _lastExtendUtc;
 
     private DateTime _armStartedUtc;
     private DateTime _frozenAtUtc;
@@ -71,6 +77,18 @@ public sealed class FreezeController : IDisposable
     public FreezePhase Phase => _phase;
     public bool IsActive => _phase != FreezePhase.Idle;
     public FreezeMode Mode => _mode;
+
+    /// <summary>Time left on a timed freeze, or null for an indefinite one.</summary>
+    public TimeSpan? Remaining { get; private set; }
+
+    /// <summary>Whether the active timed freeze can be extended.</summary>
+    public bool CanExtend =>
+        _phase == FreezePhase.Frozen
+        && _planned is not null
+        && _planned.Value < MaxFreeze
+        && _mode != FreezeMode.Hard
+        && _allowUnlockHotkey
+        && (_cap <= TimeSpan.Zero || _planned.Value < _cap);
 
     /// <summary>True while a PIN freeze is active, so release must come from the PIN prompt.</summary>
     public bool RequiresPin => IsActive && _mode == FreezeMode.Pin;
@@ -112,6 +130,8 @@ public sealed class FreezeController : IDisposable
 
         _mode = mode;
         _allowUnlockHotkey = allowUnlockHotkey;
+        _lastExtendUtc = default;
+        Remaining = null;
 
         // A fresh throttle per freeze, seeded from disk so a restart or reboot does not
         // clear the cooldown or the escalation.
@@ -132,6 +152,14 @@ public sealed class FreezeController : IDisposable
         _cap = _settings.SafetyMaxSeconds > 0
             ? TimeSpan.FromSeconds(_settings.SafetyMaxSeconds)
             : TimeSpan.Zero;
+
+        // Hard and USB-triggered freezes cannot use the extension shortcut.
+        _extendBinding = mode != FreezeMode.Hard
+                         && allowUnlockHotkey
+                         && _planned is not null
+                         && Hotkeys.TryParse(_settings.ExtendHotkey, out var extendBinding)
+            ? extendBinding
+            : HotkeyBinding.None;
 
         _armSeconds = Math.Max(0, armSeconds);
         _armStartedUtc = DateTime.UtcNow;
@@ -200,11 +228,17 @@ public sealed class FreezeController : IDisposable
                 BlockAllKeys = _mode == FreezeMode.Strict && _settings.BlockAllKeys,
                 BlockMouse = _mode == FreezeMode.Strict && _settings.BlockMouse,
                 UnlockBinding = binding,
+                ExtendBinding = _mode == FreezeMode.Strict && _settings.BlockAllKeys
+                    ? _extendBinding
+                    : HotkeyBinding.None,
                 UnlockHoldMs = _settings.UnlockHoldMs
             };
 
             _hook.UnlockComboPressed +=
                 () => _dispatcher.BeginInvoke(() => Release(FreezeEndReason.HotkeyUnlocked));
+
+            _hook.ExtendComboPressed +=
+                () => _dispatcher.BeginInvoke(() => Extend(ExtendStep));
 
             if (!_hook.Start())
             {
@@ -250,6 +284,28 @@ public sealed class FreezeController : IDisposable
         if (RequiresPin) return false;
 
         Release(reason);
+        return true;
+    }
+
+    /// <summary>Adds time to the active timer, up to the safety and 24-hour limits.</summary>
+    public bool Extend(TimeSpan extra)
+    {
+        if (!CanExtend || extra <= TimeSpan.Zero) return false;
+
+        // Ignore a near-simultaneous second trigger.
+        var now = DateTime.UtcNow;
+        if (_lastExtendUtc != default && now - _lastExtendUtc < ExtendDebounce)
+            return false;
+
+        var planned = _planned!.Value + extra;
+        if (planned > MaxFreeze) planned = MaxFreeze;
+        if (_cap > TimeSpan.Zero && planned > _cap) planned = _cap;
+
+        if (planned <= _planned.Value) return false;
+
+        _lastExtendUtc = now;
+        _planned = planned;
+        PushTick();
         return true;
     }
 
@@ -374,6 +430,8 @@ public sealed class FreezeController : IDisposable
         string hint;
         bool mouseBlocked;
         bool interactive;
+        bool canExtend;
+        string extendHint;
 
         if (_phase == FreezePhase.Arming)
         {
@@ -384,6 +442,8 @@ public sealed class FreezeController : IDisposable
             // Escape is still deliverable during arming.
             mouseBlocked = false;
             interactive = true;
+            canExtend = false;
+            extendHint = string.Empty;
         }
         else
         {
@@ -407,6 +467,17 @@ public sealed class FreezeController : IDisposable
 
             hint = BuildUnlockHint(mouseBlocked);
             interactive = !mouseBlocked;
+
+            // If the mouse is blocked, extension needs a working shortcut.
+            canExtend = CanExtend && (_extendBinding.IsValid || !mouseBlocked);
+
+            extendHint = !canExtend
+                ? string.Empty
+                : _extendBinding.IsValid
+                    ? mouseBlocked
+                        ? $"{_extendBinding.Display} adds five minutes."
+                        : $"{_extendBinding.Display} or the +5 min button adds five minutes."
+                    : "The +5 min button adds five minutes.";
         }
 
         var state = new OverlayState
@@ -430,7 +501,10 @@ public sealed class FreezeController : IDisposable
             UnlockHint = hint,
             ModeLabel = ModeLabel(_mode),
             Interactive = interactive,
-            RequiresPin = _mode == FreezeMode.Pin
+            RequiresPin = _mode == FreezeMode.Pin,
+            CanExtend = canExtend,
+            ExtendMinutes = (int)ExtendStep.TotalMinutes,
+            ExtendHint = extendHint
         };
 
         foreach (var overlay in _overlays)
@@ -545,6 +619,7 @@ public sealed class FreezeController : IDisposable
             var overlay = new OverlayWindow(
                 screen,
                 onUnlock: () => Release(FreezeEndReason.UserUnlocked),
+                onExtend: () => Extend(ExtendStep),
                 verifyPin: verifyPin,
                 verifyPhrase: verifyPhrase,
                 closeRequestsUnlock: !pinMode,

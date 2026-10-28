@@ -68,6 +68,9 @@ public sealed class AppSettings
     /// <summary>Freeze length in seconds. 0 means "until I unlock".</summary>
     public int DurationSeconds { get; set; } = 60;
 
+    /// <summary>Optional local clock time for the next freeze.</summary>
+    public TimeSpan? FreezeUntilTime { get; set; }
+
     /// <summary>Grace period before input is actually taken away, so the action can be aborted.</summary>
     public int ArmSeconds { get; set; } = 3;
 
@@ -105,6 +108,9 @@ public sealed class AppSettings
 
     public string UnlockHotkey { get; set; } = "Ctrl+Alt+U";
     public string StartHotkey { get; set; } = "Ctrl+Alt+L";
+
+    /// <summary>Shortcut that adds five minutes to a timed freeze.</summary>
+    public string ExtendHotkey { get; set; } = "Ctrl+Alt+E";
 
     /// <summary>How long the unlock shortcut must be held, in milliseconds. 0 releases instantly.</summary>
     public int UnlockHoldMs { get; set; } = 1200;
@@ -219,6 +225,7 @@ public sealed class AppSettings
     {
         Mode = other.Mode;
         DurationSeconds = other.DurationSeconds;
+        FreezeUntilTime = other.FreezeUntilTime;
         ArmSeconds = other.ArmSeconds;
         BlockAllKeys = other.BlockAllKeys;
         BlockMouse = other.BlockMouse;
@@ -233,6 +240,7 @@ public sealed class AppSettings
         CheckForUpdatesOnStartup = other.CheckForUpdatesOnStartup;
         UnlockHotkey = other.UnlockHotkey;
         StartHotkey = other.StartHotkey;
+        ExtendHotkey = other.ExtendHotkey;
         UnlockHoldMs = other.UnlockHoldMs;
         SafetyMaxSeconds = other.SafetyMaxSeconds;
         MinimizeToTray = other.MinimizeToTray;

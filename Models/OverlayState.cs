@@ -47,4 +47,13 @@ public sealed class OverlayState
 
     /// <summary>PIN mode: the lock screen shows a PIN prompt instead of an Unlock button.</summary>
     public bool RequiresPin { get; init; }
+
+    /// <summary>Whether the lock screen can extend this freeze.</summary>
+    public bool CanExtend { get; init; }
+
+    /// <summary>Minutes added by one extension.</summary>
+    public int ExtendMinutes { get; init; } = 5;
+
+    /// <summary>Extension instruction shown on the lock screen.</summary>
+    public string ExtendHint { get; init; } = string.Empty;
 }

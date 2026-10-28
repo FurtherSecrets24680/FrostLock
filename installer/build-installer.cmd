@@ -30,5 +30,20 @@ echo Compiling the installer...
 "%ISCC%" "FrostLock.iss"
 if errorlevel 1 exit /b 1
 
+for /f "tokens=3" %%V in ('findstr /b /c:"#define MyAppVersion" "FrostLock.iss"') do set "VERSION=%%~V"
+set "SETUP=Output\FrostLock-Setup-%VERSION%.exe"
+if not exist "%SETUP%" (
+    echo Could not find the compiled installer: %SETUP%
+    exit /b 1
+)
+
+echo Writing SHA-256 sidecar...
+powershell.exe -NoProfile -Command "$ErrorActionPreference='Stop'; try { $file='%SETUP%'; $stream=[IO.File]::OpenRead($file); $sha=[Security.Cryptography.SHA256]::Create(); try { $hash=[BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-','').ToLowerInvariant() } finally { $stream.Dispose(); $sha.Dispose() }; [IO.File]::WriteAllText($file+'.sha256','sha256:'+$hash,[Text.Encoding]::ASCII) } catch { Write-Error $_; exit 1 }"
+if errorlevel 1 exit /b 1
+for %%A in ("%SETUP%.sha256") do if %%~zA NEQ 71 (
+    echo The SHA-256 sidecar was not written correctly.
+    exit /b 1
+)
+
 echo.
-echo Installer written to "%~dp0Output"
+echo Installer and SHA-256 written to "%~dp0Output"

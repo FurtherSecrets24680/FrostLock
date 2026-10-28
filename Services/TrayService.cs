@@ -14,6 +14,7 @@ public sealed class TrayService : IDisposable
     private readonly WinForms.NotifyIcon _icon;
     private readonly ContextMenu _menu;
     private readonly MenuItem _freezeItem;
+    private readonly MenuItem _quickFreezeItem;
     private readonly MenuItem _stopItem;
     private readonly MenuItem _stopWatchingItem;
     private readonly MenuItem _exitItem;
@@ -21,6 +22,7 @@ public sealed class TrayService : IDisposable
     private bool _usbWatching;
 
     public event Action? FreezeRequested;
+    public event Action<int>? QuickFreezeRequested;
     public event Action? UnlockRequested;
     public event Action? ShowRequested;
     public event Action? SettingsRequested;
@@ -31,6 +33,21 @@ public sealed class TrayService : IDisposable
     {
         _freezeItem = new MenuItem { Header = "Freeze input now" };
         _freezeItem.Click += (_, _) => FreezeRequested?.Invoke();
+
+        _quickFreezeItem = new MenuItem { Header = "Freeze for" };
+        foreach (var (label, seconds) in new[]
+                 {
+                     ("5 minutes", 5 * 60),
+                     ("15 minutes", 15 * 60),
+                     ("30 minutes", 30 * 60),
+                     ("1 hour", 60 * 60),
+                     ("Until I unlock", 0)
+                 })
+        {
+            var item = new MenuItem { Header = label };
+            item.Click += (_, _) => QuickFreezeRequested?.Invoke(seconds);
+            _quickFreezeItem.Items.Add(item);
+        }
 
         _stopItem = new MenuItem { Header = "Release freeze", IsEnabled = false };
         _stopItem.Click += (_, _) => UnlockRequested?.Invoke();
@@ -50,6 +67,7 @@ public sealed class TrayService : IDisposable
 
         _menu = new ContextMenu();
         _menu.Items.Add(_freezeItem);
+        _menu.Items.Add(_quickFreezeItem);
         _menu.Items.Add(_stopItem);
         _menu.Items.Add(_stopWatchingItem);
         _menu.Items.Add(new Separator());
@@ -96,6 +114,7 @@ public sealed class TrayService : IDisposable
     {
         _frozen = frozen;
         _freezeItem.IsEnabled = !frozen && !_usbWatching;
+        _quickFreezeItem.IsEnabled = !frozen && !_usbWatching;
         _stopItem.IsEnabled = frozen && canRelease;
         _stopItem.Header = frozen && !canRelease ? "Release with PIN" : "Release freeze";
         _exitItem.IsEnabled = !frozen || canRelease;
@@ -112,6 +131,7 @@ public sealed class TrayService : IDisposable
     {
         _usbWatching = watching;
         _freezeItem.IsEnabled = !_frozen && !watching;
+        _quickFreezeItem.IsEnabled = !_frozen && !watching;
         _stopWatchingItem.IsEnabled = watching;
         _stopWatchingItem.Header = watching ? "Stop USB watching" : "USB mode is not watching";
     }

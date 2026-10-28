@@ -13,10 +13,16 @@ public sealed class HookBlocker : IDisposable
 {
     public event Action? UnlockComboPressed;
 
+    /// <summary>Raised once per extend-key press.</summary>
+    public event Action? ExtendComboPressed;
+
     public bool BlockAllKeys { get; set; }
     public bool BlockMouse { get; set; }
     public bool BlockSystemKeys { get; set; } = true;
     public HotkeyBinding UnlockBinding { get; set; } = HotkeyBinding.None;
+
+    /// <summary>Extend shortcut, detected even when keys are blocked.</summary>
+    public HotkeyBinding ExtendBinding { get; set; } = HotkeyBinding.None;
 
     /// <summary>Milliseconds the unlock combo must be held. 0 releases on the key press.</summary>
     public int UnlockHoldMs { get; set; }
@@ -59,9 +65,9 @@ public sealed class HookBlocker : IDisposable
 
         var module = Native.GetModuleHandleW(null);
 
-        // The keyboard hook also carries the unlock combo, so it is needed even when
-        // nothing is being blocked.
-        if (BlockAllKeys || BlockSystemKeys || UnlockBinding.IsValid)
+        // The keyboard hook also carries the unlock and extend combos, so it is needed
+        // even when nothing is being blocked.
+        if (BlockAllKeys || BlockSystemKeys || UnlockBinding.IsValid || ExtendBinding.IsValid)
         {
             _keyboardProc = KeyboardProc;
             _keyboardHook = Native.SetWindowsHookExW(Native.WH_KEYBOARD_LL, _keyboardProc, module, 0);
@@ -95,6 +101,9 @@ public sealed class HookBlocker : IDisposable
             int msg = wParam.ToInt32();
             bool isDown = msg is Native.WM_KEYDOWN or Native.WM_SYSKEYDOWN;
             bool isUp = msg is Native.WM_KEYUP or Native.WM_SYSKEYUP;
+
+            // Ignore key repeat so holding the combo extends only once.
+            bool repeated = isDown && _down.Contains(vk);
 
             if (isDown) _down.Add(vk);
             else if (isUp) _down.Remove(vk);
@@ -135,6 +144,17 @@ public sealed class HookBlocker : IDisposable
             {
                 _comboDown = false;
                 try { _holdTimer?.Change(Timeout.Infinite, Timeout.Infinite); } catch { /* ignore */ }
+            }
+
+            // Swallow the extend combo even when every other key is blocked.
+            bool extendHeld = ExtendBinding.IsValid
+                              && _down.Contains(ExtendBinding.VirtualKey)
+                              && ExtendBinding.Matches(ctrl, alt, shift, win, ExtendBinding.VirtualKey);
+
+            if (isDown && !repeated && vk == ExtendBinding.VirtualKey && extendHeld)
+            {
+                ExtendComboPressed?.Invoke();
+                return (IntPtr)1;
             }
 
             if (ShouldBlockKey(vk, ctrl, alt, shift, win))

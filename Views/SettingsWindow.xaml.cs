@@ -93,6 +93,7 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
 
         TxtUnlockHotkey.Text = _settings.UnlockHotkey;
         TxtStartHotkey.Text = _settings.StartHotkey;
+        TxtExtendHotkey.Text = _settings.ExtendHotkey;
 
         UpdateBackgroundLabel();
 
@@ -325,7 +326,8 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
     // True while one of the hotkey capture fields owns the keyboard focus.
     private bool IsHotkeyFieldFocused()
         => ReferenceEquals(Keyboard.FocusedElement, TxtUnlockHotkey)
-           || ReferenceEquals(Keyboard.FocusedElement, TxtStartHotkey);
+           || ReferenceEquals(Keyboard.FocusedElement, TxtStartHotkey)
+           || ReferenceEquals(Keyboard.FocusedElement, TxtExtendHotkey);
 
     private void LockScreen_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -498,19 +500,26 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         }
 
         bool editingUnlock = ReferenceEquals(box, TxtUnlockHotkey);
-        var other = editingUnlock ? _settings.StartHotkey : _settings.UnlockHotkey;
+        bool editingStart = ReferenceEquals(box, TxtStartHotkey);
+        var others = editingUnlock
+            ? new[] { _settings.StartHotkey, _settings.ExtendHotkey }
+            : editingStart
+                ? new[] { _settings.UnlockHotkey, _settings.ExtendHotkey }
+                : new[] { _settings.UnlockHotkey, _settings.StartHotkey };
 
-        if (string.Equals(binding.Display, other, StringComparison.OrdinalIgnoreCase))
+        if (others.Any(other => Hotkeys.TryParse(other, out var parsed) && parsed == binding))
         {
-            Report("The unlock and start hotkeys must be different combinations.");
+            Report("Unlock, start and extend hotkeys must be different combinations.");
             e.Handled = true;
             return;
         }
 
         if (editingUnlock)
             _settings.UnlockHotkey = binding.Display;
-        else
+        else if (editingStart)
             _settings.StartHotkey = binding.Display;
+        else
+            _settings.ExtendHotkey = binding.Display;
 
         box.Text = binding.Display;
         Report(_validateAndApply());

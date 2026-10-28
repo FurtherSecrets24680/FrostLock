@@ -139,7 +139,8 @@ public partial class AboutWindow : Wpf.Ui.Controls.FluentWindow
 
         if (_update is { UpdateAvailable: true })
         {
-            if (string.IsNullOrWhiteSpace(_update.DownloadUrl))
+            if (string.IsNullOrWhiteSpace(_update.DownloadUrl)
+                || !UpdateService.TryNormalizeSha256(_update.Sha256, out _))
             {
                 OpenReleases();
                 return;
@@ -179,6 +180,14 @@ public partial class AboutWindow : Wpf.Ui.Controls.FluentWindow
                 $"Version {result.LatestVersion} is available, but this release has no installer.";
             SetUpdateButton("Open release page", Wpf.Ui.Controls.SymbolRegular.ArrowDownload24);
             OpenReleases();
+            return;
+        }
+
+        if (!UpdateService.TryNormalizeSha256(result.Sha256, out _))
+        {
+            TxtUpdateStatus.Text =
+                $"Version {result.LatestVersion} is available, but GitHub has not published a valid SHA-256 digest. Auto-install is disabled.";
+            SetUpdateButton("Open release page", Wpf.Ui.Controls.SymbolRegular.ArrowDownload24);
             return;
         }
 
@@ -230,7 +239,7 @@ public partial class AboutWindow : Wpf.Ui.Controls.FluentWindow
             Directory.CreateDirectory(directory);
 
             await UpdateService.DownloadAsync(
-                url, destination, update.AssetSize, progress, _downloadCts.Token);
+                url, destination, update.AssetSize, update.Sha256, progress, _downloadCts.Token);
 
             UpdateProgress.Value = 1;
             TxtUpdateStatus.Text = "Download complete. Starting the installer…";

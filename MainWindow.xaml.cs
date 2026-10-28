@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using FrostLock.Interop;
 using FrostLock.Models;
 using FrostLock.Services;
@@ -30,6 +31,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private bool _usbWatching;
     private bool _usbFreezeActive;
     private bool _usbReverseBehavior;
+    private DispatcherTimer? _untilPreviewTimer;
 
     public MainWindow(AppSettings settings, FreezeController controller)
     {
@@ -53,11 +55,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         _hotkeys.Attach(this);
         _hotkeys.StartPressed += StartFreeze;
+        _hotkeys.ExtendPressed += ExtendFreeze;
         _usbDrive.Attach(this);
         _usbDrive.TargetPresenceChanged += OnUsbTargetPresenceChanged;
 
         _tray = new TrayService();
         _tray.FreezeRequested += StartFreeze;
+        _tray.QuickFreezeRequested += StartQuickFreeze;
         _tray.UnlockRequested += Panic;
         _tray.ShowRequested += ShowFromTray;
         _tray.SettingsRequested += OpenSettings;
@@ -67,6 +71,17 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _controller.Started += OnFreezeStarted;
         _controller.Ended += OnFreezeEnded;
         _controller.Tick += OnFreezeTick;
+
+        DependencyPropertyDescriptor.FromProperty(
+                Wpf.Ui.Controls.TimePicker.SelectedTimeProperty, typeof(Wpf.Ui.Controls.TimePicker))?
+            .AddValueChanged(UntilPicker, (_, _) => UntilTime_Changed());
+        _untilPreviewTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _untilPreviewTimer.Tick += (_, _) =>
+        {
+            UpdateUntilPreview();
+            UpdateStatusIdle();
+        };
+        _untilPreviewTimer.Start();
 
         WireOptionToggles();
 
@@ -172,6 +187,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     ? InstanceReply.Done("Freeze started.")
                     : InstanceReply.Fail("The freeze could not be started.");
 
+            case "extend":
+                if (!_controller.Extend(TimeSpan.FromSeconds(Math.Max(1, command.DurationSeconds ?? 300))))
+                    return InstanceReply.Fail("This freeze cannot be extended. It may be indefinite, at its safety cap, or using Hard/USB mode.");
+                return InstanceReply.Done("Freeze extended.");
+
             case "panic":
                 if (!_controller.IsActive)
                     return InstanceReply.Done("No freeze is active.");
@@ -231,6 +251,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _usbDrive.Configure(false, null);
         _usbDrive.Dispose();
         _hotkeys.Dispose();
+        _untilPreviewTimer?.Stop();
+        _untilPreviewTimer = null;
     }
 
     // Freeze control
@@ -240,7 +262,23 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private void StartFreeze() => StartFreezeCore(fromUsb: false);
 
-    private void StartFreezeCore(bool fromUsb)
+    private void StartQuickFreeze(int seconds)
+    {
+        if (_controller.IsActive || _usbWatching) return;
+
+        _controller.DurationOverrideSeconds = seconds;
+        try
+        {
+            var mode = _settings.Mode == FreezeMode.UsbKey ? FreezeMode.Strict : _settings.Mode;
+            StartFreezeCore(fromUsb: false, mode);
+        }
+        finally
+        {
+            _controller.DurationOverrideSeconds = null;
+        }
+    }
+
+    private void StartFreezeCore(bool fromUsb, FreezeMode? modeOverride = null)
     {
         if (_usbWatching && !fromUsb)
         {
@@ -257,8 +295,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
 
         SaveSettings();
-
-        var mode = ModeOverride ?? _settings.Mode;
+        var mode = modeOverride ?? ModeOverride ?? _settings.Mode;
         ModeOverride = null;
 
         if (mode == FreezeMode.UsbKey)
@@ -267,10 +304,18 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             return;
         }
 
+        bool durationFromClock = false;
+        if (_settings.FreezeUntilTime is { } untilTime
+            && _controller.DurationOverrideSeconds is null)
+        {
+            _controller.DurationOverrideSeconds = ClockTime.SecondsUntil(untilTime, DateTime.Now);
+            durationFromClock = true;
+        }
+
         switch (_controller.TryStart(mode, allowUnlockHotkey: !fromUsb))
         {
             case StartResult.NeedsElevation:
-                PromptElevation();
+                PromptElevation(_controller.DurationOverrideSeconds);
                 break;
 
             case StartResult.PinNotSet:
@@ -286,6 +331,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     "FrostLock", MessageBoxButton.OK, MessageBoxImage.Warning);
                 break;
         }
+
+        if (durationFromClock)
+            _controller.DurationOverrideSeconds = null;
     }
 
     private void StartUsbWatching()
@@ -384,7 +432,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
-    private void PromptElevation()
+    private void PromptElevation(int? durationOverride = null)
     {
         var answer = MessageBox.Show(this,
             "Hard freeze uses the Win32 BlockInput call, which requires administrator rights.\n\n" +
@@ -398,8 +446,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         try
         {
+            var duration = durationOverride ?? _settings.DurationSeconds;
+            if (durationOverride is null && _settings.FreezeUntilTime is { } untilTime)
+                duration = ClockTime.SecondsUntil(untilTime, DateTime.Now);
             var args = $"--freeze --allow-instance --mode hard " +
-                       $"--seconds {_settings.DurationSeconds} --arm {_settings.ArmSeconds}";
+                       $"--seconds {duration} --arm {_settings.ArmSeconds}";
 
             Process.Start(new ProcessStartInfo(exe)
             {
@@ -536,15 +587,39 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         if (string.Equals(item.Tag.ToString(), "Custom", StringComparison.OrdinalIgnoreCase))
         {
+            _settings.FreezeUntilTime = null;
+            UntilRow.Visibility = Visibility.Collapsed;
             CustomDurationRow.Visibility = Visibility.Visible;
             _loading = true;
             CustomDurationBox.Value = Math.Clamp(
                 (int)Math.Ceiling(_settings.DurationSeconds / 60d), 1, 1440);
             _loading = false;
+            SaveSettings();
+            UpdateStatusIdle();
+            return;
+        }
+
+        if (string.Equals(item.Tag.ToString(), "Until", StringComparison.OrdinalIgnoreCase))
+        {
+            CustomDurationRow.Visibility = Visibility.Collapsed;
+            UntilRow.Visibility = Visibility.Visible;
+            if (_settings.FreezeUntilTime is null)
+            {
+                var defaultUntil = DateTime.Now.AddHours(1);
+                _settings.FreezeUntilTime = new TimeSpan(defaultUntil.Hour, defaultUntil.Minute, 0);
+            }
+            _loading = true;
+            UntilPicker.SelectedTime = _settings.FreezeUntilTime;
+            _loading = false;
+            SaveSettings();
+            UpdateUntilPreview();
+            UpdateStatusIdle();
             return;
         }
 
         CustomDurationRow.Visibility = Visibility.Collapsed;
+        UntilRow.Visibility = Visibility.Collapsed;
+        _settings.FreezeUntilTime = null;
         if (!int.TryParse(item.Tag.ToString(), out var seconds)) return;
 
         _settings.DurationSeconds = seconds;
@@ -568,8 +643,31 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         if (_settings.DurationSeconds == seconds) return;
 
         _settings.DurationSeconds = seconds;
+        _settings.FreezeUntilTime = null;
         SaveSettings();
         UpdateStatusIdle();
+    }
+
+    private void UntilTime_Changed()
+    {
+        if (_loading || DurationBox.SelectedItem is not ComboBoxItem { Tag: "Until" }) return;
+        if (UntilPicker.SelectedTime is not { } selected) return;
+        _settings.FreezeUntilTime = selected;
+        SaveSettings();
+        UpdateUntilPreview();
+        UpdateStatusIdle();
+    }
+
+    private void UpdateUntilPreview()
+    {
+        if (_settings.FreezeUntilTime is not { } selected)
+        {
+            UntilPreview.Text = "Choose the time input comes back.";
+            return;
+        }
+
+        var deadline = ClockTime.Resolve(selected, DateTime.Now);
+        UntilPreview.Text = $"Input returns {deadline:ddd, HH:mm} ({FormatDuration(deadline - DateTime.Now)} from now).";
     }
 
     private void Mode_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -593,7 +691,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         SelectByTag(ModeBox, _settings.Mode.ToString());
 
-        var durationTag = _settings.DurationSeconds switch
+        var durationTag = _settings.FreezeUntilTime is not null
+            ? "Until"
+            : _settings.DurationSeconds switch
         {
             0 => "0",
             30 => "30",
@@ -608,6 +708,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         CustomDurationRow.Visibility = durationTag == "Custom"
             ? Visibility.Visible
             : Visibility.Collapsed;
+        UntilRow.Visibility = durationTag == "Until" ? Visibility.Visible : Visibility.Collapsed;
+        UntilPicker.SelectedTime = _settings.FreezeUntilTime;
 
         ChkBlockAllKeys.IsChecked = _settings.BlockAllKeys;
         ChkBlockMouse.IsChecked = _settings.BlockMouse;
@@ -621,6 +723,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         UpdateModePresentation();
         UpdateHotkeyLabels();
         UpdateStats();
+        UpdateUntilPreview();
         UpdateStatusIdle();
     }
 
@@ -706,7 +809,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         var start = Hotkeys.TryParse(_settings.StartHotkey, out var s) ? s.Display : _settings.StartHotkey;
         var unlock = Hotkeys.TryParse(_settings.UnlockHotkey, out var u) ? u.Display : _settings.UnlockHotkey;
-        TxtHotkeys.Text = $"Start {start}  ·  Unlock {unlock}";
+        var extend = Hotkeys.TryParse(_settings.ExtendHotkey, out var x) ? x.Display : _settings.ExtendHotkey;
+        TxtHotkeys.Text = $"Start {start}  ·  Unlock {unlock}  ·  Extend {extend}";
     }
 
     private void UpdateAdminBadge()
@@ -749,9 +853,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             : "Keyboard and mouse are yours.";
         StatusTime.Text = _settings.Mode == FreezeMode.UsbKey
             ? string.Empty
-            : _settings.IsIndefinite
-                ? "∞"
-                : FormatDuration(TimeSpan.FromSeconds(_settings.DurationSeconds));
+            : _settings.FreezeUntilTime is { } until
+                ? $"Until {ClockTime.Resolve(until, DateTime.Now):HH:mm}"
+                : _settings.IsIndefinite
+                    ? "∞"
+                    : FormatDuration(TimeSpan.FromSeconds(_settings.DurationSeconds));
         BtnFreeze.Content = _settings.Mode == FreezeMode.UsbKey ? "Start watching" : "Freeze input now";
         BtnFreeze.ToolTip = null;
         UpdateFreezeToolTip();
@@ -794,6 +900,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private string? ApplyHotkeys()
     {
         _hotkeys.UnregisterStart();
+        _hotkeys.UnregisterExtend();
 
         // While the settings window is open the global start hotkey is released, so a
         // combination can be recorded without launching a freeze in the middle of it.
@@ -806,8 +913,21 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 return _hotkeys.LastError;
         }
 
+        if (_settings.Mode != FreezeMode.Strict || !_settings.BlockAllKeys)
+        {
+            if (Hotkeys.TryParse(_settings.ExtendHotkey, out var extend) && extend.IsValid)
+            {
+                if (extend == binding)
+                    return "Start and extend hotkeys must be different combinations.";
+                if (!_hotkeys.RegisterExtend(extend))
+                    return _hotkeys.LastError;
+            }
+        }
+
         return null;
     }
+
+    private void ExtendFreeze() => _controller.Extend(TimeSpan.FromMinutes(5));
 
     private void OpenSettings() => OpenSettings(SettingsSection.General);
 

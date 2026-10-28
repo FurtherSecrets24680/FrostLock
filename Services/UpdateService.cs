@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net.Http;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace FrostLock.Services;
@@ -12,7 +13,8 @@ public sealed record UpdateCheckResult(
     string? Error,
     string? DownloadUrl = null,
     string? AssetName = null,
-    long AssetSize = 0);
+    long AssetSize = 0,
+    string? Sha256 = null);
 
 /// <summary>Asks GitHub for the latest published release and compares it to this build.</summary>
 public static class UpdateService
@@ -57,7 +59,8 @@ public static class UpdateService
                 null,
                 asset?.Url,
                 asset?.Name,
-                asset?.Size ?? 0);
+                asset?.Size ?? 0,
+                asset?.Sha256);
         }
         catch (Exception ex)
         {
@@ -66,56 +69,72 @@ public static class UpdateService
     }
 
     /// <summary>
-    /// Downloads a release asset to <paramref name="destination"/> and verifies that it is a
-    /// Windows executable of the expected size. Reports progress from 0 to 1.
+    /// Downloads a release asset while computing its SHA-256, then checks the size and PE
+    /// signature. A missing or malformed expected hash fails closed.
     /// </summary>
     public static async Task DownloadAsync(
         string url,
         string destination,
         long expectedSize,
+        string? expectedSha256,
         IProgress<double>? progress = null,
         CancellationToken ct = default)
     {
+        var expectedHash = RequireSha256(expectedSha256);
+
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
         http.DefaultRequestHeaders.UserAgent.ParseAdd("FrostLock");
 
-        using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
-        response.EnsureSuccessStatusCode();
-
-        var total = response.Content.Headers.ContentLength ?? expectedSize;
-
-        await using (var source = await response.Content.ReadAsStreamAsync(ct))
-        await using (var target = new FileStream(destination, FileMode.Create, FileAccess.Write,
-                     FileShare.None, 81920, useAsync: true))
+        try
         {
-            var buffer = new byte[81920];
-            long received = 0;
+            using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+            response.EnsureSuccessStatusCode();
 
-            while (true)
+            var total = response.Content.Headers.ContentLength ?? expectedSize;
+
+            await using (var source = await response.Content.ReadAsStreamAsync(ct))
+            await using (var target = new FileStream(destination, FileMode.Create, FileAccess.Write,
+                         FileShare.None, 81920, useAsync: true))
             {
-                var read = await source.ReadAsync(buffer.AsMemory(), ct);
-                if (read <= 0) break;
+                using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                var buffer = new byte[81920];
+                long received = 0;
 
-                await target.WriteAsync(buffer.AsMemory(0, read), ct);
-                received += read;
+                while (true)
+                {
+                    var read = await source.ReadAsync(buffer.AsMemory(), ct);
+                    if (read <= 0) break;
 
-                if (total > 0)
-                    progress?.Report(Math.Clamp(received / (double)total, 0d, 1d));
+                    hash.AppendData(buffer, 0, read);
+                    await target.WriteAsync(buffer.AsMemory(0, read), ct);
+                    received += read;
+
+                    if (total > 0)
+                        progress?.Report(Math.Clamp(received / (double)total, 0d, 1d));
+                }
+
+                await target.FlushAsync(ct);
+                var actualHash = hash.GetHashAndReset();
+                if (!CryptographicOperations.FixedTimeEquals(actualHash, Convert.FromHexString(expectedHash)))
+                    throw new InvalidDataException("The installer SHA-256 does not match the digest published by GitHub.");
             }
 
-            await target.FlushAsync(ct);
+            var info = new FileInfo(destination);
+            if (expectedSize > 0 && info.Length != expectedSize)
+                throw new InvalidDataException(
+                    $"The download was {info.Length:N0} bytes; this release said {expectedSize:N0}.");
+
+            if (!IsWindowsExecutable(destination))
+                throw new InvalidDataException("The downloaded file is not a Windows installer.");
         }
-
-        var info = new FileInfo(destination);
-        if (expectedSize > 0 && info.Length != expectedSize)
-            throw new InvalidDataException(
-                $"The download was {info.Length:N0} bytes; this release said {expectedSize:N0}.");
-
-        if (!IsWindowsExecutable(destination))
-            throw new InvalidDataException("The downloaded file is not a Windows installer.");
+        catch
+        {
+            try { File.Delete(destination); } catch { /* ignore cleanup failure */ }
+            throw;
+        }
     }
 
-    private static (string Name, string Url, long Size)? FindInstallerAsset(JsonElement release)
+    internal static (string Name, string Url, long Size, string? Sha256)? FindInstallerAsset(JsonElement release)
     {
         if (!release.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
             return null;
@@ -145,10 +164,34 @@ public static class UpdateService
                 ? parsedSize
                 : 0;
 
-            return (Path.GetFileName(name), url, size);
+            var digest = asset.TryGetProperty("digest", out var digestElement)
+                ? digestElement.GetString()
+                : null;
+
+            return (Path.GetFileName(name), url, size, digest);
         }
 
         return null;
+    }
+
+    internal static bool TryNormalizeSha256(string? digest, out string normalized)
+    {
+        normalized = string.Empty;
+        if (string.IsNullOrWhiteSpace(digest)) return false;
+
+        var value = digest.Trim();
+        if (value.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
+            value = value[7..];
+
+        if (value.Length != 64 || value.Any(c => !Uri.IsHexDigit(c))) return false;
+        normalized = value.ToUpperInvariant();
+        return true;
+    }
+
+    internal static string RequireSha256(string? digest)
+    {
+        if (TryNormalizeSha256(digest, out var normalized)) return normalized;
+        throw new InvalidDataException("This release has no valid SHA-256 digest. The installer was not downloaded.");
     }
 
     private static bool IsWindowsExecutable(string path)

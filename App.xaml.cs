@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Threading;
 using System.Windows;
 using FrostLock.Interop;
@@ -67,7 +68,7 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        if (options.Command is "status" or "exit" or "panic" or "lock")
+        if (options.Command is "status" or "exit" or "panic" or "extend" or "lock")
         {
             RunStandalone(options);
             Shutdown();
@@ -174,6 +175,8 @@ internal sealed class CliOptions
     public string? Command { get; private set; }
     public FreezeMode? ModeOverride { get; private set; }
     public int? SecondsOverride { get; private set; }
+    public TimeSpan? UntilTimeOfDay { get; private set; }
+    public int? ExtendSeconds { get; private set; }
     public int? ArmOverride { get; private set; }
     public bool? SoundOverride { get; private set; }
     public bool StartMinimized { get; private set; }
@@ -184,7 +187,7 @@ internal sealed class CliOptions
     /// <summary>Set when a value could not be read. Reported only when a console is available.</summary>
     public string? Error { get; private set; }
 
-    public bool WantsConsole => Command == "status" || Help || Version;
+    public bool WantsConsole => Command is "status" or "extend" || Help || Version;
 
     public static string VersionLine => $"FrostLock {UpdateService.CurrentVersion.ToString(3)}";
 
@@ -196,6 +199,7 @@ internal sealed class CliOptions
         Commands
           --freeze, -f            Start a freeze now
           --panic                 Release the current freeze (refused during a PIN lock)
+          --extend [time]         Add time to the current freeze. Defaults to 5m.
           --lock-now              Lock the Windows session
           --show                  Bring the FrostLock window to the front
           --exit                  Quit FrostLock
@@ -204,6 +208,7 @@ internal sealed class CliOptions
         Options
           --mode <mode>           gentle, strict, hard or pin. Defaults to your saved mode.
           --duration <time>, -d   Length of the freeze: 90s, 25m, 1h30m, or 0. Also --for.
+          --until <HH:mm>         Freeze until the next occurrence of a local clock time.
           --until-unlock          Same as --duration 0.
           --seconds <n>, -s <n>   Length in seconds. Kept for compatibility with --duration.
           --arm <n>               Seconds before input is taken away.
@@ -235,6 +240,27 @@ internal sealed class CliOptions
 
                 case "--panic":
                     o.Command ??= "panic";
+                    break;
+
+                case "--extend":
+                    o.Command ??= "extend";
+
+                    // Consume a duration only if the next token is not another flag.
+                    if (i + 1 < args.Length && !args[i + 1].StartsWith('-'))
+                    {
+                        var extendText = Next(args, ref i);
+                        if (extendText is not null
+                            && TryParseDuration(extendText, out var extendSeconds)
+                            && extendSeconds > 0)
+                        {
+                            o.ExtendSeconds = extendSeconds;
+                        }
+                        else
+                        {
+                            o.Error ??= $"Could not read the extension '{extendText}'. Try 5m or 15m.";
+                        }
+                    }
+
                     break;
 
                 case "--lock-now":
@@ -279,6 +305,7 @@ internal sealed class CliOptions
                 case "--until-unlock":
                 case "--indefinite":
                     o.SecondsOverride = 0;
+                    o.UntilTimeOfDay = null;
                     break;
 
                 case "--no-arm":
@@ -308,9 +335,30 @@ internal sealed class CliOptions
                     if (Next(args, ref i) is { } durationText)
                     {
                         if (TryParseDuration(durationText, out var seconds))
+                        {
                             o.SecondsOverride = seconds;
+                            o.UntilTimeOfDay = null;
+                        }
                         else
+                        {
                             o.Error ??= $"Could not read the duration '{durationText}'. Try 90s, 25m or 1h30m.";
+                        }
+                    }
+
+                    break;
+
+                case "--until":
+                    if (Next(args, ref i) is { } untilText)
+                    {
+                        if (TryParseClockTime(untilText, out var timeOfDay))
+                        {
+                            o.UntilTimeOfDay = timeOfDay;
+                            o.SecondsOverride = null;
+                        }
+                        else
+                        {
+                            o.Error ??= $"Could not read the time '{untilText}'. Use 24-hour time like 15:30.";
+                        }
                     }
 
                     break;
@@ -320,9 +368,14 @@ internal sealed class CliOptions
                     if (Next(args, ref i) is { } secondsText)
                     {
                         if (int.TryParse(secondsText, out var sec) && sec >= 0)
+                        {
                             o.SecondsOverride = Math.Min(sec, MaxSeconds);
+                            o.UntilTimeOfDay = null;
+                        }
                         else
+                        {
                             o.Error ??= $"Could not read the number of seconds '{secondsText}'.";
+                        }
                     }
 
                     break;
@@ -350,16 +403,47 @@ internal sealed class CliOptions
         {
             Command = "freeze",
             Mode = ModeOverride?.ToString(),
-            DurationSeconds = SecondsOverride,
+            DurationSeconds = SecondsOverride
+                              ?? (UntilTimeOfDay is { } time
+                                  ? ClockTime.SecondsUntil(time, DateTime.Now)
+                                  : null),
             ArmSeconds = ArmOverride,
             Sound = SoundOverride
         },
         "panic" => new InstanceCommand { Command = "panic" },
+        "extend" => new InstanceCommand
+        {
+            Command = "extend",
+            DurationSeconds = ExtendSeconds ?? 5 * 60
+        },
         "lock" => new InstanceCommand { Command = "lock" },
         "exit" => new InstanceCommand { Command = "exit" },
         "status" => new InstanceCommand { Command = "status" },
         _ => new InstanceCommand { Command = "show" }
     };
+
+    /// <summary>
+    /// Reads a 24-hour clock time such as 15:30 or 9:05. The caller resolves it to the
+    /// next occurrence of that time.
+    /// </summary>
+    public static bool TryParseClockTime(string text, out TimeSpan timeOfDay)
+    {
+        timeOfDay = default;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        var formats = new[]
+        {
+            @"h\:mm", @"hh\:mm", @"h\:mm\:ss", @"hh\:mm\:ss"
+        };
+
+        if (!TimeSpan.TryParseExact(text.Trim(), formats, CultureInfo.InvariantCulture, out var parsed))
+            return false;
+
+        if (parsed < TimeSpan.Zero || parsed >= TimeSpan.FromDays(1)) return false;
+
+        timeOfDay = parsed;
+        return true;
+    }
 
     /// <summary>
     /// Reads 90s, 25m, 1h, 1h30m or a bare number of seconds. 0 means "until I unlock".

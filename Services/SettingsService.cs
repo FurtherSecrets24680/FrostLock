@@ -23,9 +23,11 @@ public static class SettingsService
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
     };
 
-    public static AppSettings Load()
+    public static AppSettings Load(string? directory = null)
     {
-        foreach (var path in new[] { FilePath, BackupPath })
+        var (filePath, backupPath, _) = Paths(directory);
+
+        foreach (var path in new[] { filePath, backupPath })
         {
             try
             {
@@ -44,37 +46,38 @@ public static class SettingsService
     }
 
     /// <summary>Writes settings through a temporary file and keeps a backup.</summary>
-    public static void Save(AppSettings settings)
+    public static void Save(AppSettings settings, string? directory = null)
     {
         try
         {
-            Directory.CreateDirectory(Dir);
+            var (filePath, backupPath, tempPath) = Paths(directory);
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
 
             var json = Serialize(settings);
             var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(json);
 
-            using (var stream = new FileStream(TempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
                 stream.Write(bytes, 0, bytes.Length);
                 stream.Flush(flushToDisk: true);
             }
 
-            if (File.Exists(FilePath))
+            if (File.Exists(filePath))
             {
                 try
                 {
-                    File.Replace(TempPath, FilePath, BackupPath, ignoreMetadataErrors: true);
+                    File.Replace(tempPath, filePath, backupPath, ignoreMetadataErrors: true);
                 }
                 catch
                 {
                     // Some filesystems do not support Replace; fall back to a copy.
-                    File.Copy(TempPath, FilePath, overwrite: true);
-                    try { File.Delete(TempPath); } catch { /* ignore */ }
+                    File.Copy(tempPath, filePath, overwrite: true);
+                    try { File.Delete(tempPath); } catch { /* ignore */ }
                 }
             }
             else
             {
-                File.Move(TempPath, FilePath);
+                File.Move(tempPath, filePath);
             }
         }
         catch
@@ -151,6 +154,9 @@ public static class SettingsService
         }
 
         if (s.DurationSeconds < 0) s.DurationSeconds = 0;
+        if (s.FreezeUntilTime is { } untilTime
+            && (untilTime < TimeSpan.Zero || untilTime >= TimeSpan.FromDays(1)))
+            s.FreezeUntilTime = null;
         if (s.ArmSeconds < 0) s.ArmSeconds = 0;
         if (s.SafetyMaxSeconds < 0) s.SafetyMaxSeconds = 0;
         if (s.FreezeCount < 0) s.FreezeCount = 0;
@@ -170,6 +176,7 @@ public static class SettingsService
         s.LockScreenBackgroundPath = (s.LockScreenBackgroundPath ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(s.UnlockHotkey)) s.UnlockHotkey = "Ctrl+Alt+U";
         if (string.IsNullOrWhiteSpace(s.StartHotkey)) s.StartHotkey = "Ctrl+Alt+L";
+        if (string.IsNullOrWhiteSpace(s.ExtendHotkey)) s.ExtendHotkey = "Ctrl+Alt+E";
 
         (s.PinSalt, s.PinHash) = NormalizeSecret(s.PinSalt, s.PinHash);
         (s.PanicSalt, s.PanicHash) = NormalizeSecret(s.PanicSalt, s.PanicHash);
@@ -200,4 +207,15 @@ public static class SettingsService
     public static string SettingsDirectory => Dir;
 
     public static string SettingsFilePath => FilePath;
+
+    private static (string FilePath, string BackupPath, string TempPath) Paths(string? directory)
+    {
+        if (string.IsNullOrWhiteSpace(directory))
+            return (FilePath, BackupPath, TempPath);
+
+        return (
+            Path.Combine(directory, "settings.json"),
+            Path.Combine(directory, "settings.json.bak"),
+            Path.Combine(directory, "settings.json.tmp"));
+    }
 }
