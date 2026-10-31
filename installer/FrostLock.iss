@@ -3,7 +3,7 @@
 
 #define MyAppName "FrostLock"
 ; Keep in sync with <Version> in FrostLock.csproj.
-#define MyAppVersion "1.4.0"
+#define MyAppVersion "1.5.0"
 #define MyAppPublisher "FurtherSecrets"
 #define MyAppExeName "FrostLock.exe"
 ; Keep in sync with <TargetFramework> in FrostLock.csproj. The app ships

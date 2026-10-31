@@ -21,6 +21,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private TrayService? _tray;
     private SettingsWindow? _settingsWindow;
     private AboutWindow? _aboutWindow;
+    private readonly MobileControlService _mobile;
 
     private bool _loading;
     private bool _exiting;
@@ -38,6 +39,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         InitializeComponent();
         _settings = settings;
         _controller = controller;
+        _mobile = new MobileControlService(settings, Dispatcher, GetMobileStatus,
+            StartMobileFreeze, GetMobileLockSettings, UpdateMobileLockSettings,
+            ReleaseMobileFreeze, ApproveMobilePairing);
     }
 
     // Lifecycle
@@ -62,7 +66,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _tray = new TrayService();
         _tray.FreezeRequested += StartFreeze;
         _tray.QuickFreezeRequested += StartQuickFreeze;
-        _tray.UnlockRequested += Panic;
         _tray.ShowRequested += ShowFromTray;
         _tray.SettingsRequested += OpenSettings;
         _tray.ExitRequested += ExitApplication;
@@ -88,6 +91,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         ApplyHotkeys();
         LoadSettingsToUi();
         UpdateAdminBadge();
+
+        if (_settings.MobileControlEnabled) _ = _mobile.StartAsync();
 
         if (_settings.CheckForUpdatesOnStartup)
             _ = CheckForUpdatesAsync();
@@ -245,6 +250,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         try { _aboutWindow?.Close(); } catch { /* ignore */ }
         _aboutWindow = null;
 
+        try { _mobile.Dispose(); } catch { /* ignore */ }
+
         _tray?.Dispose();
         _tray = null;
 
@@ -319,14 +326,14 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 break;
 
             case StartResult.PinNotSet:
-                MessageBox.Show(this,
+                AppDialog.Show(this,
                     "PIN lock needs a PIN. Set one in Settings, then start the lock again.",
                     "PIN required", MessageBoxButton.OK, MessageBoxImage.Information);
                 OpenSettings();
                 break;
 
             case StartResult.Failed:
-                MessageBox.Show(this,
+                AppDialog.Show(this,
                     "FrostLock could not engage the input blocker. Another program may already be blocking input.",
                     "FrostLock", MessageBoxButton.OK, MessageBoxImage.Warning);
                 break;
@@ -434,7 +441,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private void PromptElevation(int? durationOverride = null)
     {
-        var answer = MessageBox.Show(this,
+        var answer = AppDialog.Show(this,
             "Hard freeze uses the Win32 BlockInput call, which requires administrator rights.\n\n" +
             "Restart FrostLock elevated and begin the freeze now?",
             "Administrator rights required", MessageBoxButton.YesNo, MessageBoxImage.Question);
@@ -467,7 +474,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "FrostLock", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show(this, ex.Message, "FrostLock", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -548,9 +555,12 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         };
 
         BtnFreeze.Content = arming ? "Cancel freeze" : "Release now";
+        BtnFreeze.Visibility = !arming && state.Mode == FreezeMode.Gentle
+            ? Visibility.Collapsed
+            : Visibility.Visible;
 
         _tray?.SetFrozen(true, !state.RequiresPin);
-        _tray?.SetTooltip($"FrostLock — {state.ModeLabel}: {StatusDetail.Text}");
+        _tray?.SetTooltip($"FrostLock: {state.ModeLabel}. {StatusDetail.Text}");
     }
 
     // UI wiring
@@ -751,7 +761,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         ModeDescription.Text = mode switch
         {
             FreezeMode.Gentle =>
-                "A full-screen lock screen with the system keys suppressed. The mouse still works on it.",
+                "A light pause: Windows shortcuts and keys remain available. Use your unlock shortcut to resume.",
             FreezeMode.Strict =>
                 "Adds a global low-level input hook on top of the lock screen. No administrator rights needed.",
             FreezeMode.Pin =>
@@ -810,7 +820,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         var start = Hotkeys.TryParse(_settings.StartHotkey, out var s) ? s.Display : _settings.StartHotkey;
         var unlock = Hotkeys.TryParse(_settings.UnlockHotkey, out var u) ? u.Display : _settings.UnlockHotkey;
         var extend = Hotkeys.TryParse(_settings.ExtendHotkey, out var x) ? x.Display : _settings.ExtendHotkey;
-        TxtHotkeys.Text = $"Start {start}  ·  Unlock {unlock}  ·  Extend {extend}";
+        TxtHotkeys.Text = $"Start: {start}; Unlock: {unlock}; Extend: {extend}";
     }
 
     private void UpdateAdminBadge()
@@ -859,6 +869,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                     ? "∞"
                     : FormatDuration(TimeSpan.FromSeconds(_settings.DurationSeconds));
         BtnFreeze.Content = _settings.Mode == FreezeMode.UsbKey ? "Start watching" : "Freeze input now";
+        BtnFreeze.Visibility = Visibility.Visible;
         BtnFreeze.ToolTip = null;
         UpdateFreezeToolTip();
     }
@@ -867,7 +878,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         TxtStats.Text = _settings.FreezeCount <= 0
             ? "No freezes yet"
-            : $"{_settings.FreezeCount} freeze{(_settings.FreezeCount == 1 ? "" : "s")} · " +
+            : $"{_settings.FreezeCount} freeze{(_settings.FreezeCount == 1 ? "" : "s")}, " +
               $"{FormatDuration(TimeSpan.FromSeconds(_settings.TotalFrozenSeconds))} frozen in total";
     }
 
@@ -891,6 +902,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         SettingsService.Save(_settings);
         StartupService.Apply(_settings.StartWithWindows, _settings.StartMinimized);
+        SyncMobileControl();
 
         UpdateHotkeyLabels();
 
@@ -929,6 +941,139 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private void ExtendFreeze() => _controller.Extend(TimeSpan.FromMinutes(5));
 
+    private MobileFreezeSnapshot GetMobileStatus()
+    {
+        var phase = _controller.Phase.ToString().ToLowerInvariant();
+        var activeMode = _controller.IsActive ? _controller.Mode : (FreezeMode?)null;
+        var localOnly = _usbWatching || _usbFreezeActive || activeMode == FreezeMode.Hard;
+        var canRelease = !localOnly && activeMode is FreezeMode.Gentle or FreezeMode.Strict
+                         || !localOnly && activeMode == FreezeMode.Pin && _settings.MobilePinReleaseAllowed;
+        return new MobileFreezeSnapshot(
+            phase,
+            activeMode?.ToString(),
+            _controller.Remaining is { } remaining ? Math.Max(0, (long)Math.Ceiling(remaining.TotalSeconds)) : null,
+            canRelease,
+            DateTime.UtcNow.ToString("O"));
+    }
+
+    private string? StartMobileFreeze(int durationSeconds, FreezeMode? requestedMode)
+    {
+        if (_controller.IsActive) return "A freeze is already active.";
+        if (_usbWatching || _usbFreezeActive) return "USB key mode is controlled by the selected drive.";
+        var mode = requestedMode ?? _settings.Mode;
+        if (mode is not (FreezeMode.Gentle or FreezeMode.Strict or FreezeMode.Pin))
+            return "Remote freeze requires Gentle, Strict, or configured PIN mode.";
+        if (mode == FreezeMode.Pin && !_settings.HasPin)
+            return "Set a PIN on the PC before selecting PIN mode.";
+        if (durationSeconds is < 0 or > 86400 || durationSeconds is > 0 and < 300)
+            return "Choose until unlock or a duration from 5 minutes to 24 hours.";
+
+        _controller.DurationOverrideSeconds = durationSeconds;
+        try
+        {
+            var result = _controller.TryStart(mode);
+            if (result == StartResult.Started && !_controller.IsActive)
+                return "FrostLock could not engage the input blocker.";
+            return result switch
+            {
+                StartResult.Started => null,
+                StartResult.AlreadyActive => "A freeze is already active.",
+                StartResult.NeedsElevation => "Hard mode cannot be started by the phone.",
+                StartResult.PinNotSet => "PIN mode cannot be started by the phone.",
+                _ => "FrostLock could not start the freeze."
+            };
+        }
+        finally
+        {
+            _controller.DurationOverrideSeconds = null;
+        }
+    }
+
+    private MobileLockSettings GetMobileLockSettings() => new(
+        _settings.Mode.ToString(),
+        _settings.DurationSeconds,
+        _settings.ArmSeconds,
+        _settings.SafetyMaxSeconds,
+        _settings.BlockAllKeys,
+        _settings.BlockMouse,
+        _settings.BlockSystemKeys,
+        _settings.LockScreenStyle.ToString(),
+        _settings.LockScreenOnAllDisplays,
+        _settings.ShowCountdownOnOverlay,
+        _settings.ShowClockOnOverlay,
+        _settings.LockScreenMessage,
+        _settings.KeepDisplayAwake,
+        _settings.PlaySound,
+        _settings.LockWindowsOnRelease,
+        _settings.HasPin,
+        _settings.MobilePinReleaseAllowed);
+
+    private string? UpdateMobileLockSettings(MobileLockSettings settings)
+    {
+        if (_controller.IsActive) return "Finish the active freeze before changing lock settings.";
+        if (settings.Mode.Equals(nameof(FreezeMode.Pin), StringComparison.OrdinalIgnoreCase) && !_settings.HasPin)
+            return "Set a PIN on the PC before selecting PIN mode.";
+        if (!Enum.TryParse<FreezeMode>(settings.Mode, true, out var mode)
+            || mode is not (FreezeMode.Gentle or FreezeMode.Strict or FreezeMode.Pin))
+            return "Phones may select Gentle, Strict, or PIN mode. Hard and USB Key are controlled on the PC.";
+        if (!Enum.TryParse<LockScreenStyle>(settings.LockScreenStyle, true, out var style))
+            return "Choose Solid, Dim, or None for the lock screen.";
+
+        _settings.Mode = mode;
+        _settings.DurationSeconds = settings.DurationSeconds;
+        _settings.FreezeUntilTime = null;
+        _settings.ArmSeconds = settings.ArmSeconds;
+        _settings.SafetyMaxSeconds = settings.SafetyMaxSeconds;
+        _settings.BlockAllKeys = settings.BlockAllKeys;
+        _settings.BlockMouse = settings.BlockMouse;
+        _settings.BlockSystemKeys = settings.BlockSystemKeys;
+        _settings.LockScreenStyle = style;
+        _settings.LockScreenOnAllDisplays = settings.LockScreenOnAllDisplays;
+        _settings.ShowCountdownOnOverlay = settings.ShowCountdownOnOverlay;
+        _settings.ShowClockOnOverlay = settings.ShowClockOnOverlay;
+        _settings.LockScreenMessage = settings.LockScreenMessage.Trim();
+        _settings.KeepDisplayAwake = settings.KeepDisplayAwake;
+        _settings.PlaySound = settings.PlaySound;
+        _settings.LockWindowsOnRelease = settings.LockWindowsOnRelease;
+        SaveSettings();
+        LoadSettingsToUi();
+        UpdateStatusIdle();
+        return null;
+    }
+
+    private string? ReleaseMobileFreeze(bool allowPinRelease)
+    {
+        if (!_controller.IsActive) return null;
+        if (_usbWatching || _usbFreezeActive) return "USB-triggered freezes must be released by their drive.";
+        if (_controller.Mode == FreezeMode.Hard) return "Hard mode cannot be released from the phone.";
+        if (_controller.RequiresPin && !allowPinRelease) return "Remote release of PIN mode is disabled in FrostLock settings.";
+        return _controller.RequestMobileRelease(allowPinRelease, usbOwned: false)
+            ? null
+            : "The current freeze cannot be released from the phone.";
+    }
+
+    private bool ApproveMobilePairing(PendingMobilePairing pending)
+    {
+        Window owner = _settingsWindow is { IsVisible: true } settingsWindow ? settingsWindow : this;
+        if (owner.IsVisible)
+        {
+            if (owner.WindowState == WindowState.Minimized) owner.WindowState = WindowState.Normal;
+            owner.Activate();
+            owner.Topmost = true;
+            owner.Topmost = false;
+        }
+        var result = AppDialog.Show(owner,
+            $"Approve this paired phone?\n\nName: {pending.DeviceName}\nKey fingerprint: {pending.PublicKeyFingerprint[..Math.Min(24, pending.PublicKeyFingerprint.Length)]}\n\nThe paired phone can view status, start eligible freezes, and release modes allowed by your Mobile Unlock policy. You can revoke it in Settings.",
+            "Approve FrostLock Remote phone", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        return result == MessageBoxResult.Yes;
+    }
+
+    private void SyncMobileControl()
+    {
+        if (_settings.MobileControlEnabled) _ = _mobile.StartAsync();
+        else _ = _mobile.StopAsync();
+    }
+
     private void OpenSettings() => OpenSettings(SettingsSection.General);
 
     private void OpenSettings(SettingsSection section)
@@ -947,7 +1092,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             return;
         }
 
-        var window = new SettingsWindow(_settings, SaveSettings);
+        var window = new SettingsWindow(_settings, SaveSettings, _mobile);
         if (IsVisible) window.Owner = this;
 
         _settingsHotkeysSuspended = true;

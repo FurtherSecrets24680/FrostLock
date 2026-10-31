@@ -61,7 +61,7 @@ public enum AppTheme
 public sealed class AppSettings
 {
     /// <summary>Bumped when a stored value changes meaning, so old files can be migrated.</summary>
-    public int SettingsVersion { get; set; } = 5;
+    public int SettingsVersion { get; set; } = 6;
 
     public FreezeMode Mode { get; set; } = FreezeMode.Gentle;
 
@@ -153,6 +153,20 @@ public sealed class AppSettings
     /// <summary>Lock the Windows session when a freeze ends. Off by default.</summary>
     public bool LockWindowsOnRelease { get; set; }
 
+    /// <summary>Expose the HTTPS API to explicitly paired Android devices over private LAN.</summary>
+    public bool MobileControlEnabled { get; set; }
+
+    /// <summary>A paired phone may release PIN mode only when the owner opts in here.</summary>
+    public bool MobilePinReleaseAllowed { get; set; }
+
+    /// <summary>Allow Mobile Unlock on Windows Public profiles. Only for trusted test networks.</summary>
+    public bool AllowMobileOnPublicProfileForTesting { get; set; }
+
+    /// <summary>DPAPI-wrapped PKCS#12 identity for the local HTTPS endpoint.</summary>
+    public string? MobileServerCertificatePfx { get; set; }
+
+    public List<PairedMobileDevice> MobileDevices { get; set; } = new();
+
     // Lightweight stats, purely informational.
     public int FreezeCount { get; set; }
     public long TotalFrozenSeconds { get; set; }
@@ -218,7 +232,12 @@ public sealed class AppSettings
     public bool VerifyPanicPhrase(string phrase) =>
         HasPanicPhrase && PinService.Verify(phrase, PanicSalt, PanicHash);
 
-    public AppSettings Clone() => (AppSettings)MemberwiseClone();
+    public AppSettings Clone()
+    {
+        var copy = (AppSettings)MemberwiseClone();
+        copy.MobileDevices = MobileDevices?.Select(device => device.Clone()).ToList() ?? new List<PairedMobileDevice>();
+        return copy;
+    }
 
     /// <summary>Copies editable settings; copies statistics only when requested.</summary>
     public void CopyFrom(AppSettings other, bool includeStats = false)
@@ -250,6 +269,10 @@ public sealed class AppSettings
         KeepDisplayAwake = other.KeepDisplayAwake;
         PlaySound = other.PlaySound;
         LockWindowsOnRelease = other.LockWindowsOnRelease;
+        MobileControlEnabled = other.MobileControlEnabled;
+        MobilePinReleaseAllowed = other.MobilePinReleaseAllowed;
+        MobileServerCertificatePfx = other.MobileServerCertificatePfx;
+        MobileDevices = other.MobileDevices?.Select(device => device.Clone()).ToList() ?? new List<PairedMobileDevice>();
         PinSalt = other.PinSalt;
         PinHash = other.PinHash;
         PinFailures = other.PinFailures;

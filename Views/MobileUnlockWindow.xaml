@@ -1,0 +1,120 @@
+<ui:FluentWindow x:Class="FrostLock.Views.MobileUnlockWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Mobile Unlock"
+                 Width="560" Height="720" MinWidth="520" MinHeight="620"
+                 WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+                 WindowBackdropType="Mica" WindowCornerPreference="Round"
+                 ExtendsContentIntoTitleBar="True" ResizeMode="CanResize"
+                 FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="14">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar Grid.Row="0" Title="Mobile Unlock" ShowMaximize="False" />
+        <ScrollViewer Grid.Row="1" Padding="26,12,26,26" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Connect FrostLock Remote" FontSize="24" FontWeight="SemiBold" />
+                <TextBlock Text="Enable LAN control, then pair a phone on this PC."
+                           TextWrapping="Wrap" Margin="0,5,0,18"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                <Border Padding="18" CornerRadius="12" BorderThickness="1" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+                    <StackPanel>
+                        <TextBlock Text="Connection" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,12" />
+                        <CheckBox x:Name="EnableMobile" Content="Enable LAN control" FontWeight="SemiBold"
+                                  Checked="EnableMobile_Changed" Unchecked="EnableMobile_Changed" />
+                        <TextBlock Text="Uses HTTPS over your private network. Each new phone must be approved on this PC."
+                                   TextWrapping="Wrap" Margin="24,4,0,0"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBlock x:Name="ListenerStatus" Text="Disabled" Margin="24,8,0,0" TextWrapping="Wrap" />
+
+                        <Border Padding="14,12" Margin="0,14,0,0" CornerRadius="10"
+                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+                            <StackPanel>
+                                <CheckBox x:Name="AllowPublicTesting" Content="Allow connections on Public networks"
+                                          FontWeight="SemiBold" Checked="AllowPublicTesting_Changed" Unchecked="AllowPublicTesting_Changed" />
+                                <TextBlock Text="For trusted test networks only. Devices on public Wi-Fi may be able to reach FrostLock. This choice is saved across restarts."
+                                           TextWrapping="Wrap" Margin="24,5,0,0"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Divider}" Margin="0,14,0,10" />
+                        <TextBlock Text="Pair a phone" FontSize="16" FontWeight="SemiBold" />
+                        <TextBlock Text="Pairing codes expire after 3 minutes."
+                                   TextWrapping="Wrap" Margin="0,3,0,8"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBlock x:Name="LanInviteLabel" Text="LAN address" />
+                        <ComboBox x:Name="AddressBox" MinWidth="220" HorizontalAlignment="Left" />
+                        <ui:Button x:Name="CreateInviteButton" Content="Show LAN pairing QR code" Appearance="Primary"
+                                   HorizontalAlignment="Left" Margin="0,10,0,0" Click="CreateInvite_Click" />
+                    </StackPanel>
+                </Border>
+
+                <Border Padding="18" CornerRadius="12" BorderThickness="1" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Phone access to PIN freezes" FontSize="17" FontWeight="SemiBold" />
+                        <CheckBox x:Name="AllowPinRelease" Content="Allow a paired phone to end PIN freezes"
+                                  FontWeight="SemiBold" Margin="0,10,0,0"
+                                  Checked="AllowPinRelease_Changed" Unchecked="AllowPinRelease_Changed" />
+                        <TextBlock Text="Optional. A paired phone can end a PIN freeze without entering the PIN on this PC. Hard and USB-triggered freezes are not affected."
+                                   TextWrapping="Wrap" Margin="24,4,0,0"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <Border x:Name="PinReleaseConfirmation" Visibility="Collapsed"
+                                Padding="12" Margin="24,12,0,0" CornerRadius="8"
+                                BorderThickness="1" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+                            <StackPanel>
+                                <TextBlock Text="Enable phone PIN release?" FontWeight="SemiBold" />
+                                <TextBlock Text="Any phone paired with this PC can end a PIN freeze without entering the PIN here. You can switch this off at any time."
+                                           TextWrapping="Wrap" Margin="0,5,0,10"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:Button Content="Enable" Appearance="Primary" Click="ConfirmPinRelease_Click" />
+                                    <Button Content="Keep off" Margin="8,0,0,0" Click="CancelPinRelease_Click" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Orientation="Horizontal" Margin="2,20,0,8">
+                    <ui:SymbolIcon Symbol="Phone24" Style="{StaticResource SectionIcon}" />
+                    <TextBlock Text="Paired phones" Style="{StaticResource SectionHeader}" Margin="0" />
+                </StackPanel>
+                <Border Padding="12" CornerRadius="12" BorderThickness="1" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+                    <StackPanel>
+                        <TextBlock x:Name="NoDevices" Text="No phones paired yet." Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <ItemsControl x:Name="DevicesList">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,8,0,0" Padding="14,12" CornerRadius="10"
+                                            BorderThickness="1" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                            Background="{DynamicResource ControlFillColorSecondaryBrush}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding PairedAtUtc, StringFormat='Paired {0:g}'}" FontSize="12" Margin="0,3,0,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="Remove" Click="Revoke_Click" VerticalAlignment="Center" MinWidth="76" />
+                                    </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</ui:FluentWindow>

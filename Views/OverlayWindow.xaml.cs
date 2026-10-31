@@ -26,6 +26,7 @@ public partial class OverlayWindow : Window
     private bool _pinFocused;
     private bool _panicRevealed;
     private bool _canCancelArm;
+    private FreezeMode _mode = FreezeMode.Gentle;
     private TimeSpan _pinCooldown;
     private TimeSpan _panicCooldown;
 
@@ -133,14 +134,15 @@ public partial class OverlayWindow : Window
         }
     }
 
-    /// <summary>Sizes and pins the overlay to its monitor in physical pixels (DPI-safe).</summary>
+    /// <summary>Sizes the overlay to its monitor in physical pixels (DPI-safe).</summary>
     public void PositionToScreen()
     {
         var handle = new WindowInteropHelper(this).Handle;
         if (handle == IntPtr.Zero) return;
 
         var bounds = _screen.Bounds;
-        Native.SetWindowPos(handle, Native.HWND_TOPMOST, bounds.X, bounds.Y, bounds.Width, bounds.Height,
+        var zOrder = _mode == FreezeMode.Gentle ? new IntPtr(-2) : Native.HWND_TOPMOST;
+        Native.SetWindowPos(handle, zOrder, bounds.X, bounds.Y, bounds.Width, bounds.Height,
             Native.SWP_SHOWWINDOW);
     }
 
@@ -148,6 +150,12 @@ public partial class OverlayWindow : Window
     {
         bool arming = state.Phase == FreezePhase.Arming;
         _canCancelArm = arming;
+        if (_mode != state.Mode)
+        {
+            _mode = state.Mode;
+            Topmost = _mode != FreezeMode.Gentle;
+            PositionToScreen();
+        }
 
         ModeText.Text = state.ModeLabel;
 
@@ -255,7 +263,8 @@ public partial class OverlayWindow : Window
 
         bool strictMouseBlocked = !arming && state.MouseBlocked && state.Mode == FreezeMode.Strict;
         UnlockButton.IsEnabled = !strictMouseBlocked;
-        UnlockButton.Visibility = strictMouseBlocked || pinMode
+        bool gentleFrozen = !arming && state.Mode == FreezeMode.Gentle;
+        UnlockButton.Visibility = strictMouseBlocked || pinMode || gentleFrozen
             ? Visibility.Collapsed
             : Visibility.Visible;
 
@@ -391,7 +400,7 @@ public partial class OverlayWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        // A close request from the user (Alt+F4, task manager, etc.) counts as "release" —
+        // A close request from the user (Alt+F4, task manager, etc.) counts as "release".
         // except in PIN mode, where only the PIN may release the lock.
         if (!AllowClose)
         {

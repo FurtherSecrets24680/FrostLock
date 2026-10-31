@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using FrostLock.Interop;
 using FrostLock.Models;
 
 namespace FrostLock.Services;
@@ -97,11 +98,16 @@ public static class SettingsService
         {
             copy.PinHash = PinService.Protect(copy.PinHash);
             copy.PanicHash = PinService.Protect(copy.PanicHash);
+            copy.MobileServerCertificatePfx = ProtectMobileCertificate(copy.MobileServerCertificatePfx);
         }
         else
         {
             copy.ClearPin();
             copy.ClearPanicPhrase();
+            copy.MobileControlEnabled = false;
+            copy.MobilePinReleaseAllowed = false;
+            copy.MobileServerCertificatePfx = null;
+            copy.MobileDevices.Clear();
         }
 
         return JsonSerializer.Serialize(copy, Options);
@@ -181,7 +187,15 @@ public static class SettingsService
         (s.PinSalt, s.PinHash) = NormalizeSecret(s.PinSalt, s.PinHash);
         (s.PanicSalt, s.PanicHash) = NormalizeSecret(s.PanicSalt, s.PanicHash);
 
-        s.SettingsVersion = 5;
+        s.MobileDevices ??= new List<PairedMobileDevice>();
+        s.MobileDevices = s.MobileDevices
+            .Where(device => device is not null
+                             && !string.IsNullOrWhiteSpace(device.DeviceId)
+                             && !string.IsNullOrWhiteSpace(device.PublicKeyBase64))
+            .Take(32)
+            .ToList();
+        s.MobileServerCertificatePfx = UnprotectMobileCertificate(s.MobileServerCertificatePfx);
+        s.SettingsVersion = 6;
     }
 
     private static DateTime? NormalizeLockout(DateTime? lockedUntil, int level)
@@ -207,6 +221,27 @@ public static class SettingsService
     public static string SettingsDirectory => Dir;
 
     public static string SettingsFilePath => FilePath;
+
+    private static string? ProtectMobileCertificate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.StartsWith("dpapi:", StringComparison.Ordinal)) return value;
+        var protectedBytes = Native.DpapiProtect(Encoding.UTF8.GetBytes(value), Encoding.UTF8.GetBytes("FrostLock.MobileTls.v1"));
+        return protectedBytes is null ? null : "dpapi:" + Convert.ToBase64String(protectedBytes);
+    }
+
+    private static string? UnprotectMobileCertificate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || !value.StartsWith("dpapi:", StringComparison.Ordinal)) return value;
+        try
+        {
+            var bytes = Native.DpapiUnprotect(Convert.FromBase64String(value[6..]), Encoding.UTF8.GetBytes("FrostLock.MobileTls.v1"));
+            return bytes is null ? null : Encoding.UTF8.GetString(bytes);
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     private static (string FilePath, string BackupPath, string TempPath) Paths(string? directory)
     {

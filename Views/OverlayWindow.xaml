@@ -6,7 +6,7 @@
         WindowStyle="None"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
-        Topmost="True"
+        Topmost="False"
         AllowsTransparency="False"
         WindowStartupLocation="Manual"
         Background="#FF1C1C1C"

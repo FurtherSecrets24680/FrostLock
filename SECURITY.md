@@ -26,6 +26,8 @@ Include the FrostLock version, Windows build, freeze mode, and the steps that re
 - A way to release a PIN lock without the PIN, the emergency phrase, an administrator, or the documented Windows escape routes.
 - A PIN or emergency phrase that is stored or logged in a readable form, or a way to recover it from `settings.json`.
 - Update-download tampering that causes FrostLock to install an asset whose bytes do not match GitHub's published SHA-256 digest, or to install automatically when the digest is missing or invalid.
+- Unauthorized Mobile Unlock pairing or commands, acceptance of cleartext/unpinned traffic, a remote command bypassing the desktop mode policy, or a listener binding on a Public Windows firewall profile.
+- A Public-profile development override that remains active across FrostLock restarts or binds a non-private/public IP address.
 - Privilege escalation through the elevated relaunch or the installer.
 - Unlocking or bypassing the lock screen by a non-administrator who does not know the secret.
 
@@ -37,6 +39,7 @@ These are documented behaviour, not vulnerabilities:
 - A local administrator ending a freeze.
 - Physical access, including unplugging the machine or booting another OS.
 - USB key spoofing. The volume serial is an identifier, not a secret.
+- A phone releasing PIN mode after the owner explicitly enables remote PIN release. That setting makes a paired phone an alternate credential; it is off by default.
 - Hard mode releasing through the safety cap or its watchdog.
 - The unsigned installer showing a SmartScreen warning.
 

@@ -224,7 +224,10 @@ public sealed class FreezeController : IDisposable
 
             _hook = new HookBlocker
             {
-                BlockSystemKeys = pinMode || _settings.BlockSystemKeys,
+                // Gentle mode is intentionally non-blocking: let Windows shortcuts such
+                // as Task Manager work. Strict can optionally suppress them; PIN always
+                // suppresses them so the lock screen remains the release surface.
+                BlockSystemKeys = pinMode || (_mode == FreezeMode.Strict && _settings.BlockSystemKeys),
                 BlockAllKeys = _mode == FreezeMode.Strict && _settings.BlockAllKeys,
                 BlockMouse = _mode == FreezeMode.Strict && _settings.BlockMouse,
                 UnlockBinding = binding,
@@ -285,6 +288,17 @@ public sealed class FreezeController : IDisposable
 
         Release(reason);
         return true;
+    }
+
+    /// <summary>Alternate paired-device release path. Hard and USB-owned freezes stay local-only.</summary>
+    public bool RequestMobileRelease(bool allowPinRelease, bool usbOwned)
+    {
+        if (_phase == FreezePhase.Idle) return true;
+        if (_mode is FreezeMode.Hard or FreezeMode.UsbKey || usbOwned) return false;
+        if (RequiresPin && !allowPinRelease) return false;
+
+        Release(FreezeEndReason.UserUnlocked);
+        return _phase == FreezePhase.Idle;
     }
 
     /// <summary>Adds time to the active timer, up to the safety and 24-hour limits.</summary>
@@ -525,10 +539,13 @@ public sealed class FreezeController : IDisposable
             return "Enter your PIN to unlock.";
 
         var shortcutHint = UnlockShortcutHint();
+        if (_mode == FreezeMode.Gentle)
+            return "Use your unlock shortcut to release this freeze. Windows shortcuts remain available.";
+
         if (!mouseBlocked)
             return shortcutHint is null
                 ? "Click Unlock when you are ready to continue."
-                : $"Click Unlock when you are ready to continue, or use your unlock shortcut.";
+                : "Click Unlock when you are ready to continue, or use your unlock shortcut.";
 
         return shortcutHint ?? "Use your unlock shortcut to release this lock.";
     }

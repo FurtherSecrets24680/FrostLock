@@ -81,10 +81,10 @@
                     <Border Grid.Row="0" Grid.Column="4" Style="{StaticResource TableHeaderCell}"><TextBlock Text="HOW TO RELEASE" FontWeight="SemiBold" /></Border>
 
                     <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource TableCell}"><TextBlock Text="Gentle" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" /></Border>
-                    <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource TableCell}"><TextBlock Style="{StaticResource TableText}" Text="Suppresses common system shortcuts; mouse stays live." /></Border>
+                    <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource TableCell}"><TextBlock Style="{StaticResource TableText}" Text="Keys and Windows shortcuts remain available; mouse stays live." /></Border>
                     <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource TableCell}"><TextBlock Style="{StaticResource TableText}" Text="No" /></Border>
                     <Border Grid.Row="1" Grid.Column="3" Style="{StaticResource TableCell}"><TextBlock Style="{StaticResource TableText}" Text="An easy-to-release pause." /></Border>
-                    <Border Grid.Row="1" Grid.Column="4" Style="{StaticResource TableCell}"><TextBlock Style="{StaticResource TableText}" Text="On-screen Unlock button, unlock shortcut, or timer." /></Border>
+                    <Border Grid.Row="1" Grid.Column="4" Style="{StaticResource TableCell}"><TextBlock Style="{StaticResource TableText}" Text="Unlock shortcut, Alt+F4, or timer." /></Border>
 
                     <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource TableCell}"><TextBlock Text="Strict" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" /></Border>
                     <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource TableCell}"><TextBlock Style="{StaticResource TableText}" Text="Low-level keyboard and mouse hooks; blocking can be configured." /></Border>

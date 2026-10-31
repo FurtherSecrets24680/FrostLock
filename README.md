@@ -37,7 +37,7 @@ FrostLock takes the keyboard and mouse away for a set period, covers each displa
 
 | Mode       | What it does                                                                                                                                                 | Admin?  | How you get out                     |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- | ----------------------------------- |
-| **Gentle** | Lock screen plus suppressed system keys (Win, Alt+Tab, Alt+F4, Ctrl+Esc, Alt+Esc). The mouse stays live, so the on-screen **Unlock** button works.           | No      | Unlock button, unlock hotkey, timer |
+| **Gentle** | A light pause: keyboard, mouse, and Windows shortcuts remain available.                                                                                      | No      | Unlock hotkey, Alt+F4, or timer |
 | **Strict** | Uses low-level keyboard and mouse hooks to swallow input. Blocking can be configured.                                                                                 | No      | Unlock hotkey, clickable Unlock if mouse input is live, timer |
 | **Hard**   | Calls Win32 `BlockInput(true)` on a dedicated worker thread to block input at the OS level.                                                                          | **Yes** | `Ctrl+Alt+Del`, then return to FrostLock and click Unlock; timer, safety cap, or watchdog |
 | **PIN**    | Typing and the mouse still work. System keys are suppressed, and the lock screen asks for your PIN. The unlock hotkey does nothing in this mode.                     | No      | PIN, configured emergency phrase, or timer |
@@ -59,6 +59,7 @@ The **Compare all locking modes** link below the Freeze card opens a comparison 
 - **Lock screen style**: a solid cover (default), a see-through dim veil, or none at all (input-only), with an optional message line and an optional background image. PIN mode always shows a cover.
 - **Lock Windows when the freeze ends**: an opt-in switch that calls `LockWorkStation()` after the freeze, so the desktop is protected when you walk away. Off by default.
 - **USB key mode**: select a removable drive on the main screen and start watching. Choose either **Plug to freeze; unplug to release** or **Plug to release; unplug to freeze**. FrostLock's start, unlock and extend hotkeys are disabled in this mode. Use **Stop watching** in the app or tray to stop the watcher and release a USB-triggered freeze. The volume serial can be copied, so this is a convenience trigger, not secure authentication; USB cannot release PIN mode.
+- **FrostLock Remote (Android companion)**: enable LAN control in **Settings → Mobile Unlock**, create a short-lived QR pairing code, and approve each new phone on the PC. LAN uses HTTPS on private IPv4 addresses and refuses to start while a Public Windows firewall profile is active. Phones can check status, start a 5 to 60 minute freeze in the saved Gentle or Strict mode, and release eligible freezes. Hard and USB-triggered freezes are not phone-controllable. PIN release stays disabled unless separately enabled on the PC; enabling it makes each paired phone an alternate PIN-release credential. No cloud relay or router port forwarding is used. Windows Firewall may require an inbound rule for FrostLock on the Private profile for LAN control.
 - **Multi-monitor**: one lock screen per display, or the primary display only.
 - **Tray menu**: quick freeze for 5, 15, 30 or 60 minutes or until unlock, plus freeze, release, open, settings and exit. Release and exit are disabled during a PIN lock.
 - **Start with Windows**, start hidden, minimise or close to tray.
@@ -171,14 +172,14 @@ dotnet test tests\FrostLock.Tests\FrostLock.Tests.csproj -c Release
 .\installer\build-installer.cmd
 ```
 
-The result is `installer\Output\FrostLock-Setup-1.4.0.exe`, about 4 MB, plus a `.sha256` sidecar containing its SHA-256 value. Setup checks for the .NET 10 Desktop Runtime and, when it is missing, offers to download and install it from Microsoft (about 60 MB). It installs per user to `%LocalAppData%\Programs\FrostLock` without a UAC prompt; the install-mode page can switch to an all-users install. Setup adds a Start Menu shortcut, an optional desktop shortcut, an Apps & features entry and an uninstaller, and asks you to close a running FrostLock first. Uninstalling keeps `%AppData%\FrostLock\settings.json`.
+The result is `installer\Output\FrostLock-Setup-1.5.0.exe`, about 4 MB, plus a `.sha256` sidecar containing its SHA-256 value. Setup checks for the .NET 10 Desktop Runtime and, when it is missing, offers to download and install it from Microsoft (about 60 MB). It installs per user to `%LocalAppData%\Programs\FrostLock` without a UAC prompt; the install-mode page can switch to an all-users install. Setup adds a Start Menu shortcut, an optional desktop shortcut, an Apps & features entry and an uninstaller, and asks you to close a running FrostLock first. Uninstalling keeps `%AppData%\FrostLock\settings.json`.
 
 For a release, upload the installer to GitHub Releases so GitHub publishes its asset digest, and include the `.sha256` value in the release notes for people verifying the download manually. The in-app updater uses GitHub's asset digest metadata, not the sidecar; it refuses auto-install if that metadata is absent or invalid.
 
 To verify a downloaded installer in PowerShell, compare its hash with the release value:
 
 ```powershell
-(Get-FileHash .\FrostLock-Setup-1.4.0.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-FileHash .\FrostLock-Setup-1.5.0.exe -Algorithm SHA256).Hash.ToLowerInvariant()
 ```
 
 > [!IMPORTANT]

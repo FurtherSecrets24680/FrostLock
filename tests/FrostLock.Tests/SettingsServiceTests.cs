@@ -16,7 +16,9 @@ public class SettingsServiceTests
 
             Assert.Equal(FreezeMode.Gentle, settings.Mode);
             Assert.False(settings.HasPin);
-            Assert.Equal(5, settings.SettingsVersion);
+            Assert.False(settings.MobileControlEnabled);
+            Assert.False(settings.MobilePinReleaseAllowed);
+            Assert.Equal(6, settings.SettingsVersion);
         }
         finally
         {
@@ -37,7 +39,20 @@ public class SettingsServiceTests
                 FreezeUntilTime = TimeSpan.FromHours(16.5),
                 ExtendHotkey = "Ctrl+Alt+X",
                 ArmSeconds = 0,
-                LockScreenMessage = "Back soon"
+                LockScreenMessage = "Back soon",
+                MobileControlEnabled = true,
+                AllowMobileOnPublicProfileForTesting = true,
+                MobileServerCertificatePfx = Convert.ToBase64String([1, 2, 3, 4]),
+                MobileDevices =
+                [
+                    new PairedMobileDevice
+                    {
+                        DeviceId = "device-1",
+                        Name = "Test phone",
+                        PublicKeyBase64 = Convert.ToBase64String([5, 6, 7, 8]),
+                        PairedAtUtc = DateTime.UnixEpoch
+                    }
+                ]
             };
 
             SettingsService.Save(original, directory);
@@ -49,6 +64,11 @@ public class SettingsServiceTests
             Assert.Equal("Ctrl+Alt+X", loaded.ExtendHotkey);
             Assert.Equal(0, loaded.ArmSeconds);
             Assert.Equal("Back soon", loaded.LockScreenMessage);
+            Assert.True(loaded.MobileControlEnabled);
+            Assert.True(loaded.AllowMobileOnPublicProfileForTesting);
+            Assert.Equal(original.MobileServerCertificatePfx, loaded.MobileServerCertificatePfx);
+            Assert.Single(loaded.MobileDevices);
+            Assert.Equal("Test phone", loaded.MobileDevices[0].Name);
         }
         finally
         {
@@ -121,7 +141,26 @@ public class SettingsServiceTests
 
         Assert.True(SettingsService.TryParse(json, out var settings, out var error), error);
         Assert.Equal(0, settings.SafetyMaxSeconds);
-        Assert.Equal(5, settings.SettingsVersion);
+        Assert.Equal(6, settings.SettingsVersion);
+    }
+
+    [Fact]
+    public void ExportOmitsMobileControlIdentityAndDevicesWithoutMutatingLocalSettings()
+    {
+        var settings = new AppSettings
+        {
+            MobileControlEnabled = true,
+            MobilePinReleaseAllowed = true,
+            MobileServerCertificatePfx = Convert.ToBase64String([1, 2, 3]),
+            MobileDevices = [new PairedMobileDevice { DeviceId = "local", PublicKeyBase64 = "public" }]
+        };
+
+        var exported = SettingsService.Serialize(settings, includeSecrets: false);
+
+        Assert.DoesNotContain(Convert.ToBase64String([1, 2, 3]), exported);
+        Assert.DoesNotContain("public", exported);
+        Assert.True(settings.MobileControlEnabled);
+        Assert.Single(settings.MobileDevices);
     }
 
     [Fact]

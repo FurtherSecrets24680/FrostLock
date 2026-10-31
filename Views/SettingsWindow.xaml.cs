@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Net;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -21,22 +22,37 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
 {
     private readonly AppSettings _settings;
     private readonly Func<string?> _validateAndApply;
+    private readonly MobileControlService _mobile;
+    private MobilePairingQrWindow? _pairingQrWindow;
+    private readonly DispatcherTimer _mobileStatusTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private bool _loading;
     private bool _newPinRevealed;
     private bool _confirmPinRevealed;
     private SettingsSection _section = SettingsSection.General;
 
-    public SettingsWindow(AppSettings settings, Func<string?> validateAndApply)
+    public SettingsWindow(AppSettings settings, Func<string?> validateAndApply, MobileControlService mobile)
     {
         InitializeComponent();
 
         _settings = settings;
         _validateAndApply = validateAndApply;
-
+        _mobile = mobile;
         RunSettingsPath.Text = SettingsService.SettingsFilePath;
 
         LoadFromSettings();
         WireEvents();
+
+        _mobile.NetworkChanged += Mobile_NetworkChanged;
+        _mobile.PairingCompleted += Mobile_PairingCompleted;
+        _mobileStatusTimer.Tick += (_, _) => UpdateMobileStatus();
+        _mobileStatusTimer.Start();
+        Closed += (_, _) =>
+        {
+            _mobileStatusTimer.Stop();
+            _mobile.NetworkChanged -= Mobile_NetworkChanged;
+            _mobile.PairingCompleted -= Mobile_PairingCompleted;
+            RevokeDisplayedInvite();
+        };
     }
 
     /// <summary>Scrolls to a section, optionally focusing the first useful field.</summary>
@@ -77,6 +93,9 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         ChkKeepAwake.IsChecked = _settings.KeepDisplayAwake;
         ChkShowCountdown.IsChecked = _settings.ShowCountdownOnOverlay;
         ChkPlaySound.IsChecked = _settings.PlaySound;
+        EnableMobile.IsChecked = _settings.MobileControlEnabled;
+        AllowPublicTesting.IsChecked = _settings.AllowMobileOnPublicProfileForTesting;
+        AllowPinRelease.IsChecked = _settings.MobilePinReleaseAllowed;
 
         SelectTag(StyleBox, _settings.LockScreenStyle.ToString());
         SelectTag(DisplaysBox, _settings.LockScreenOnAllDisplays ? "All" : "Primary");
@@ -99,6 +118,7 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
 
         _loading = false;
 
+        UpdateMobileDetails();
         LoadPinState();
         LoadPanicState();
     }
@@ -321,6 +341,190 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         Loaded += (_, _) => Dispatcher.BeginInvoke(
             new Action(() => NavigateToSection(_section)),
             System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private async void EnableMobile_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        if (EnableMobile.IsChecked == true
+            && AppDialog.Show(this,
+                "Enable a local HTTPS listener for explicitly paired phones on private IPv4 networks? Do not enable this on an untrusted network or forward its port from your router.",
+                "Enable LAN control", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            _loading = true;
+            EnableMobile.IsChecked = false;
+            _loading = false;
+            return;
+        }
+
+        _settings.MobileControlEnabled = EnableMobile.IsChecked == true;
+        if (!_settings.MobileControlEnabled) RevokeDisplayedInvite();
+        UpdateMobileDetails();
+        Report(_validateAndApply());
+        await _mobile.StartAsync();
+        UpdateMobileDetails();
+    }
+
+    private async void AllowPublicTesting_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        if (AllowPublicTesting.IsChecked == true
+            && AppDialog.Show(this,
+                "This allows FrostLock to accept phone connections while Windows is using a Public network profile. Other devices on that network may be able to reach FrostLock. Continue only on a trusted test network.",
+                "Unsafe development override", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            _loading = true;
+            AllowPublicTesting.IsChecked = false;
+            _loading = false;
+            return;
+        }
+
+        _settings.AllowMobileOnPublicProfileForTesting = AllowPublicTesting.IsChecked == true;
+        Report(_validateAndApply());
+        await _mobile.StopAsync();
+        await _mobile.StartAsync();
+        UpdateMobileDetails();
+    }
+
+    private void AllowPinRelease_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        if (AllowPinRelease.IsChecked == true && !_settings.MobilePinReleaseAllowed)
+        {
+            _loading = true;
+            AllowPinRelease.IsChecked = false;
+            _loading = false;
+            PinReleaseConfirmation.Visibility = Visibility.Visible;
+            PinReleaseConfirmation.BringIntoView();
+            return;
+        }
+
+        _settings.MobilePinReleaseAllowed = AllowPinRelease.IsChecked == true;
+        PinReleaseConfirmation.Visibility = Visibility.Collapsed;
+        Report(_validateAndApply());
+    }
+
+    private void ConfirmPinRelease_Click(object sender, RoutedEventArgs e)
+    {
+        _loading = true;
+        AllowPinRelease.IsChecked = true;
+        _loading = false;
+        PinReleaseConfirmation.Visibility = Visibility.Collapsed;
+        _settings.MobilePinReleaseAllowed = true;
+        Report(_validateAndApply());
+    }
+
+    private void CancelPinRelease_Click(object sender, RoutedEventArgs e)
+    {
+        _loading = true;
+        AllowPinRelease.IsChecked = false;
+        _loading = false;
+        PinReleaseConfirmation.Visibility = Visibility.Collapsed;
+    }
+
+    private void Mobile_NetworkChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.InvokeAsync(() =>
+        {
+            RevokeDisplayedInvite();
+            UpdateMobileDetails();
+        });
+    }
+
+    private void Mobile_PairingCompleted(object? sender, EventArgs e)
+    {
+        Dispatcher.InvokeAsync(() =>
+        {
+            RevokeDisplayedInvite();
+            UpdateMobileDetails();
+        });
+    }
+
+    private void UpdateMobileDetails()
+    {
+        MobileDetailsPanel.Visibility = _settings.MobileControlEnabled ? Visibility.Visible : Visibility.Collapsed;
+        var listening = _mobile.ListeningAddresses;
+        var selectedAddress = AddressBox.SelectedItem as string;
+        var addresses = listening.Select(address => address.ToString()).ToArray();
+        AddressBox.ItemsSource = addresses;
+        if (selectedAddress is not null && addresses.Contains(selectedAddress, StringComparer.Ordinal))
+            AddressBox.SelectedItem = selectedAddress;
+        else if (addresses.Length > 0)
+            AddressBox.SelectedIndex = 0;
+
+        AddressBox.IsEnabled = _settings.MobileControlEnabled && addresses.Length > 0;
+        CreateInviteButton.IsEnabled = _settings.MobileControlEnabled && addresses.Length > 0;
+
+        UpdateMobileStatus();
+
+        var devices = _mobile.Devices;
+        DevicesList.ItemsSource = devices;
+        NoDevices.Visibility = devices.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UpdateMobileStatus()
+    {
+        ListenerStatus.Text = !_settings.MobileControlEnabled
+            ? "LAN control is off."
+            : _mobile.IsRunning
+                ? _settings.AllowMobileOnPublicProfileForTesting
+                    ? $"Development override active on private IPv4, port {MobileControlService.Port}."
+                    : $"Listening on private IPv4, port {MobileControlService.Port}. Windows Firewall may need a private-profile rule."
+                : $"Not listening. {_mobile.LastError ?? "No private IPv4 interface is available."}";
+
+    }
+
+    private void CreateInvite_Click(object sender, RoutedEventArgs e)
+    {
+        if (_pairingQrWindow is { IsVisible: true })
+        {
+            _pairingQrWindow.Activate();
+            _pairingQrWindow.RefreshCode();
+            return;
+        }
+
+        if (AddressBox.SelectedItem is not string addressText || !IPAddress.TryParse(addressText, out var address))
+        {
+            UpdateMobileDetails();
+            return;
+        }
+
+        try
+        {
+            var window = new MobilePairingQrWindow(
+                _mobile.CreateInvite(address),
+                () => _mobile.CreateInvite(address),
+                _mobile.RevokeInvite)
+            {
+                Owner = this
+            };
+            _pairingQrWindow = window;
+            window.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_pairingQrWindow, window)) _pairingQrWindow = null;
+            };
+            window.Show();
+        }
+        catch (Exception ex)
+        {
+            AppDialog.Show(this, ex.Message, "Could not create pairing code", MessageBoxButton.OK, MessageBoxImage.Warning);
+            UpdateMobileDetails();
+        }
+    }
+
+    private void RevokeDisplayedInvite()
+    {
+        _pairingQrWindow?.Close();
+        _pairingQrWindow = null;
+    }
+
+    private void Revoke_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not PairedMobileDevice device) return;
+        if (AppDialog.Show(this, $"Remove {device.Name} from this PC? It will no longer be able to connect to FrostLock here.",
+                "Revoke paired phone", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        _mobile.RevokeDevice(device.DeviceId);
+        UpdateMobileDetails();
     }
 
     // True while one of the hotkey capture fields owns the keyboard focus.
@@ -610,7 +814,7 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
                 return;
             }
 
-            var answer = MessageBox.Show(this,
+            var answer = AppDialog.Show(this,
                 "Replace all current settings with the values from this file?\n\n" +
                 dialog.FileName + "\n\n" +
                 "The PIN and emergency phrase already set on this PC are kept. Lifetime statistics come from the file.",

@@ -334,27 +334,27 @@
 
                 <Border Style="{StaticResource CardPanel}">
                     <StackPanel>
-                        <Grid Margin="0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Grid VerticalAlignment="Center">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <ui:SymbolIcon Symbol="Window24" Style="{StaticResource RowIcon}" />
-                                <StackPanel Grid.Column="1">
-                                    <TextBlock Text="Suppress system keys" Style="{StaticResource RowTitle}" />
-                                    <TextBlock Text="Win, Alt+Tab, Alt+F4, Ctrl+Esc"
-                                               Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
-                                </StackPanel>
-                            </Grid>
-                            <ui:ToggleSwitch x:Name="ChkSystemKeys" Grid.Column="1" VerticalAlignment="Center" />
-                        </Grid>
-
                         <StackPanel x:Name="StrictOptions" Visibility="Collapsed">
+                            <Grid Margin="0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:SymbolIcon Symbol="Window24" Style="{StaticResource RowIcon}" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Suppress Windows shortcuts" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Text="Win, Alt+Tab, Alt+F4, Ctrl+Esc"
+                                                   Style="{StaticResource RowDescription}" Margin="0,1,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                                <ui:ToggleSwitch x:Name="ChkSystemKeys" Grid.Column="1" VerticalAlignment="Center" />
+                            </Grid>
+
                             <Border Style="{StaticResource Divider}" />
 
                             <Grid Margin="0,8">
@@ -445,7 +445,7 @@
                                            ToolTip="Open the hotkey settings">Hotkeys</Hyperlink>
                             </TextBlock>
                             <TextBlock x:Name="TxtHotkeys" Grid.Column="2"
-                                       Text="Start Ctrl+Alt+L · Unlock Ctrl+Alt+U · Extend Ctrl+Alt+E"
+                                       Text="Start: Ctrl+Alt+L; Unlock: Ctrl+Alt+U; Extend: Ctrl+Alt+E"
                                        Style="{StaticResource RowDescription}"
                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                        TextWrapping="Wrap"
