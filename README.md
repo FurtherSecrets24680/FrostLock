@@ -59,7 +59,7 @@ The **Compare all locking modes** link below the Freeze card opens a comparison 
 - **Lock screen style**: a solid cover (default), a see-through dim veil, or none at all (input-only), with an optional message line and an optional background image. PIN mode always shows a cover.
 - **Lock Windows when the freeze ends**: an opt-in switch that calls `LockWorkStation()` after the freeze, so the desktop is protected when you walk away. Off by default.
 - **USB key mode**: select a removable drive on the main screen and start watching. Choose either **Plug to freeze; unplug to release** or **Plug to release; unplug to freeze**. FrostLock's start, unlock and extend hotkeys are disabled in this mode. Use **Stop watching** in the app or tray to stop the watcher and release a USB-triggered freeze. The volume serial can be copied, so this is a convenience trigger, not secure authentication; USB cannot release PIN mode.
-- **FrostLock Remote (Android companion)**: enable LAN control in **Settings → Mobile Unlock**, create a short-lived QR pairing code, and approve each new phone on the PC. LAN uses HTTPS on private IPv4 addresses and refuses to start while a Public Windows firewall profile is active. Phones can check status, start a 5 to 60 minute freeze in the saved Gentle or Strict mode, and release eligible freezes. Hard and USB-triggered freezes are not phone-controllable. PIN release stays disabled unless separately enabled on the PC; enabling it makes each paired phone an alternate PIN-release credential. No cloud relay or router port forwarding is used. Windows Firewall may require an inbound rule for FrostLock on the Private profile for LAN control.
+- **FrostLock Remote (Android companion)**: download it from the [Android releases page](https://github.com/FurtherSecrets24680/Frostlock-Remote/releases). Enable LAN control in **Settings → LAN & phone**, create a short-lived QR pairing code, and approve each new phone on the PC. LAN uses HTTPS on private IPv4 addresses and refuses to start while a Public Windows firewall profile is active, unless the trusted-network testing override is enabled. Phones can check status, start a 5 to 60 minute freeze in the saved Gentle or Strict mode, and release eligible freezes. Hard and USB-triggered freezes are not phone-controllable. PIN release stays disabled unless separately enabled on the PC; enabling it makes each paired phone an alternate PIN-release credential. No cloud relay or router port forwarding is used. Windows Firewall may require an inbound rule for FrostLock on the Private profile for LAN control.
 - **Multi-monitor**: one lock screen per display, or the primary display only.
 - **Tray menu**: quick freeze for 5, 15, 30 or 60 minutes or until unlock, plus freeze, release, open, settings and exit. Release and exit are disabled during a PIN lock.
 - **Start with Windows**, start hidden, minimise or close to tray.
@@ -95,11 +95,12 @@ Change these in **Settings → Hotkeys**: unlock, start and extend combinations,
 
 ## Settings
 
-Preferences are grouped into six cards, and each change applies and saves straight away. **Reset to defaults** sits at the bottom left.
+Preferences are grouped into seven cards, and each change applies and saves straight away. **Reset to defaults** sits at the bottom left.
 
 | Card | Options |
 | --- | --- |
 | **General** | Theme (`System`, `Light`, `Dark`), start with Windows, start hidden (off by default), minimise to tray, close keeps running, keep the display awake, sound, update check on start. |
+| **LAN & phone** | Enable LAN control, optionally allow connections on trusted test networks, pair and revoke phones, and optionally allow paired phones to release PIN freezes. |
 | **Lock screen** | Style (`Solid`, `Dim`, `None`), displays (`All`, `Primary`), countdown, clock, optional message, optional background image. |
 | **Safety** | Arm delay, optional safety auto-release ceiling, and **Lock Windows when the freeze ends**. |
 | **PIN** | Set, change or remove the PIN. At least 4 characters. |
@@ -144,7 +145,7 @@ FrostLock.exe --panic
 
 ## Build and run
 
-Requires the .NET 10 SDK or newer on Windows. The only package reference is `WPF-UI` 4.3.0, which `dotnet build` restores.
+Requires the .NET 10 SDK or newer on Windows. Package references are `WPF-UI` 4.3.0 and `QRCoder` 1.6.0; `dotnet build` restores them.
 
 ```powershell
 dotnet build -c Release
@@ -197,6 +198,8 @@ FrostLock/
     OverlayWindow.xaml(.cs)  The full-screen lock screen (one per chosen display)
     ModeComparisonWindow.xaml(.cs) Comparison table for all locking modes
     SettingsWindow.xaml(.cs) Preferences
+    MobilePairingQrWindow.xaml(.cs) Pairing QR code for Android phones
+    MobileUnlockWindow.xaml(.cs) PIN entry and mobile PIN-release confirmation
   Services/
     FreezeController.cs      Freeze lifecycle: arm → engage → tick → release → stats
     UsbDriveService.cs       Removable-drive discovery and plug/unplug monitoring
@@ -211,9 +214,11 @@ FrostLock/
     StartupService.cs        HKCU Run entry
     ThemeService.cs          Light/dark/System theming, follows Windows live
     UpdateService.cs         GitHub release check, installer download and SHA-256 verification
+    MobileControlService.cs  HTTPS LAN API, phone pairing, and remote freeze controls
+    MobilePairingCode.cs     Short-lived encrypted pairing code
     IconFactory.cs           Packaged .ico loading
   Interop/Native.cs          All P/Invoke in one place
-  Models/                    AppSettings, OverlayState, enums
+  Models/                    AppSettings, OverlayState, PairedMobileDevice, enums
   Assets/frostlock.ico       App icon (10 sizes, generated from frostlock.svg)
   tests/FrostLock.Tests/     xUnit tests for throttling, settings, clock time, CLI and update digests
 ```
