@@ -26,12 +26,12 @@ FrostLock takes the keyboard and mouse away for a set period, covers each displa
 
 ## Requirements
 
-- **To use FrostLock:** 64-bit Windows 10 or 11. The app itself needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0); if it is missing, Setup offers to download and install it once (about 60 MB, needs an internet connection). If it is already present, nothing is downloaded.
+- **To use FrostLock:** 64-bit Windows 10 or 11. The app needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0); if it is missing, Setup offers to download and install it once (about 60 MB, needs an internet connection). If it is already present, nothing is downloaded.
 - **To build from source:** the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (or newer) on Windows.
 - On ARM64 Windows, FrostLock runs through x64 emulation.
 
 > [!NOTE]
-> FrostLock still runs on Windows 10. The maintainers test on Windows 11. Windows 10 reached end of support in October 2025.
+> FrostLock still runs on Windows 10. The maintainers test on Windows 11, and Windows 10 reached end of support in October 2025.
 
 ## Modes
 
@@ -46,13 +46,13 @@ FrostLock takes the keyboard and mouse away for a set period, covers each displa
 > [!IMPORTANT]
 > Hard mode needs administrator rights. If FrostLock is not elevated, it offers to restart through UAC before the freeze begins.
 
-The **Compare all locking modes** link below the Freeze card opens a comparison table and is available regardless of the selected mode.
+The **Compare all locking modes** link below the Freeze card opens the comparison table. It works in every mode.
 
 ## Features
 
 - **Arm delay**, 3 seconds by default: a cancellable countdown on the lock screen before FrostLock blocks input. Press Esc or click **Cancel freeze** to abort.
 - **Freeze when idle**: optionally start a freeze after a chosen number of minutes without keyboard or mouse input. It uses the selected mode and duration, and the arm delay still lets you cancel. Hard and USB key mode are skipped, since they need a prompt or a drive. Waking the PC, unlocking Windows, or ending a freeze restarts the countdown.
-- **Safety auto-release**: an optional ceiling for an "until I unlock" freeze. Off by default, so that option means what it says.
+- **Safety auto-release**: an optional ceiling for an "until I unlock" freeze. Off by default.
 - **Freeze until a clock time**: choose a 24-hour time in the Freeze card. If that time has passed today, FrostLock schedules it for tomorrow and previews the deadline.
 - **Extend a running freeze**: click **+5 min** on the lock screen or press `Ctrl+Alt+E`. It also works when the taskbar and Task Manager are inaccessible. Strict mode detects the combo inside its keyboard hook; other supported modes use a global hotkey. Extension is unavailable for indefinite, Hard, and USB-triggered freezes, and never passes the safety cap or 24-hour maximum.
 - **PIN lock**: a salted PBKDF2-SHA256 hash is stored, wrapped with Windows DPAPI so it cannot be lifted from the settings file to another account. Five wrong entries trigger an escalating cooldown (30 seconds, 1, 5, 15, then 60 minutes); the level survives a restart. An optional long emergency phrase gives you a way back in if you forget the PIN. The PIN and phrase are the only release paths in this mode, including from the tray, CLI and main window.
@@ -69,7 +69,7 @@ The **Compare all locking modes** link below the Freeze card opens a comparison 
 - **Display stays awake** while frozen.
 - **Clock**: a wall clock, plus the projected unlock time for timed freezes. Toggleable.
 - **Theme**: light, dark, or follow Windows; the System choice follows live theme switches.
-- **Update check**: checks GitHub releases on start without interrupting you (on by default). About verifies the installer against GitHub's published SHA-256 digest as it downloads, then checks its size and PE header before launching it. If the release has no valid digest, auto-install is refused.
+- **Update check**: checks GitHub releases on start without interrupting you (on by default). The About dialog verifies the installer against GitHub's published SHA-256 digest as it downloads, then checks its size and PE header before launching it. If the release has no valid digest, auto-install is refused.
 - **Freeze duration**: presets from 30 seconds to 15 minutes, an indefinite option, a custom timer from 1 minute to 24 hours, or a selected clock time.
 - **Statistics**: count and total time for completed freezes. An aborted start or a shutdown does not count.
 - **Crash guard**: an unhandled exception or a stalled UI thread releases the input block instead of leaving the keyboard and mouse dead.
@@ -114,7 +114,7 @@ The Configuration card shows the settings file path. The stored PIN and emergenc
 
 ## Command line
 
-Commands and one-off overrides are sent to an already-running FrostLock over a local named pipe. If no instance is running, commands that need the window start it hidden in the tray.
+FrostLock.exe sends commands and one-off overrides to an already-running instance over a local named pipe. If no instance is running, commands that need the window start it hidden in the tray.
 
 ```
 FrostLock.exe --freeze --duration 25m --mode strict --arm 0
@@ -245,7 +245,7 @@ FrostLock/
 
 ## Credits & inspiration
 
-FrostLock is inspired by [KeyFreeze](https://keyfreeze.com/), a small utility that blocks input without locking the screen. FrostLock rebuilds that idea as a Windows app with a countdown, a PIN, and more than one route out of a freeze.
+FrostLock is inspired by [KeyFreeze](https://keyfreeze.com/), a small utility that blocks input without locking the screen, and rebuilds that idea as a Windows app with a countdown, a PIN, and more than one route out of a freeze.
 
 Built with [WPF-UI](https://github.com/lepoco/wpfui) on .NET 10.
 
