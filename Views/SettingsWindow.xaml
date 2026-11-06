@@ -30,7 +30,6 @@
                       HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
 
-                <!-- General -->
                 <StackPanel Orientation="Horizontal" Margin="2,4,0,8">
                     <ui:SymbolIcon Symbol="Settings24" Style="{StaticResource SectionIcon}" />
                     <TextBlock Text="General" Style="{StaticResource SectionHeader}" Margin="0" />
@@ -268,6 +267,20 @@
                                                  Checked="AllowPublicTesting_Changed" Unchecked="AllowPublicTesting_Changed" />
                             </Grid>
 
+                            <Grid Margin="0,6,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Allow phone task control" Style="{StaticResource RowTitle}" />
+                                    <TextBlock Text="Any paired phone can list, end, and start programs on this PC. FrostLock and Windows core processes stay protected."
+                                               Style="{StaticResource RowDescription}" Margin="0,2,12,0" />
+                                </StackPanel>
+                                <ui:ToggleSwitch x:Name="AllowTaskControl" Grid.Column="1" VerticalAlignment="Center"
+                                                 Checked="AllowTaskControl_Changed" Unchecked="AllowTaskControl_Changed" />
+                            </Grid>
+
                             <Border Style="{StaticResource Divider}" />
                             <TextBlock Text="Pair a phone" Style="{StaticResource RowTitle}" Margin="0,10,0,2" />
                             <TextBlock Text="Pairing codes expire after 3 minutes. Approve each new phone on this PC."
@@ -346,7 +359,6 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Lock screen -->
                 <StackPanel Orientation="Horizontal" Margin="2,22,0,8">
                     <ui:SymbolIcon Symbol="SlideSize24" Style="{StaticResource SectionIcon}" />
                     <TextBlock Text="Lock screen" Style="{StaticResource SectionHeader}" Margin="0" />
@@ -516,7 +528,6 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Safety -->
                 <StackPanel Orientation="Horizontal" Margin="2,22,0,8">
                     <ui:SymbolIcon Symbol="ShieldCheckmark24" Style="{StaticResource SectionIcon}" />
                     <TextBlock Text="Safety" Style="{StaticResource SectionHeader}" Margin="0" />
@@ -572,6 +583,49 @@
 
                         <Border Style="{StaticResource Divider}" />
 
+                        <StackPanel Margin="0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:SymbolIcon Symbol="Clock24" Style="{StaticResource RowIcon}" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Freeze when idle" Style="{StaticResource RowTitle}" />
+                                        <TextBlock Text="Starts after a period without input. Uses the selected mode and duration; Hard and USB key mode are skipped."
+                                                   Style="{StaticResource RowDescription}" Margin="0,1,0,0" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                                <ui:ToggleSwitch x:Name="ChkIdleFreeze" Grid.Column="1" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <Grid x:Name="IdleOptions" Margin="28,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="132" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Minutes without input" Style="{StaticResource RowDescription}"
+                                           VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                            HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <ui:NumberBox x:Name="IdleBox" Width="92"
+                                                  Minimum="1" Maximum="1440" SmallChange="1"
+                                                  SpinButtonPlacementMode="Hidden"
+                                                  ClearButtonEnabled="False"
+                                                  VerticalAlignment="Center" />
+                                    <TextBlock Text="min" Style="{StaticResource RowDescription}"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <Border Style="{StaticResource Divider}" />
+
                         <Grid Margin="0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -595,7 +649,6 @@
                     </StackPanel>
                 </Border>
 
-                <!-- PIN -->
                 <StackPanel Orientation="Horizontal" Margin="2,22,0,8">
                     <ui:SymbolIcon Symbol="Password24" Style="{StaticResource SectionIcon}" />
                     <TextBlock Text="PIN" Style="{StaticResource SectionHeader}" Margin="0" />
@@ -789,7 +842,6 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Hotkeys -->
                 <StackPanel x:Name="HotkeysBlock">
                     <StackPanel x:Name="HotkeysSection" Orientation="Horizontal" Margin="2,22,0,8">
                         <ui:SymbolIcon Symbol="Keyboard24" Style="{StaticResource SectionIcon}" />
@@ -919,7 +971,6 @@
                             Title="Hotkey not applied"
                             Margin="0,12,0,0" />
 
-                <!-- Configuration -->
                 <StackPanel Orientation="Horizontal" Margin="2,22,0,8">
                     <ui:SymbolIcon Symbol="DocumentText24" Style="{StaticResource SectionIcon}" />
                     <TextBlock Text="Configuration" Style="{StaticResource SectionHeader}" Margin="0" />
@@ -983,7 +1034,6 @@
             </StackPanel>
         </ScrollViewer>
 
-        <!-- Footer -->
         <Grid Grid.Row="2" Margin="24,8,24,20">
             <ui:Button x:Name="BtnReset" Content="Reset to defaults"
                        HorizontalAlignment="Left"

@@ -71,7 +71,6 @@ public static class SettingsService
                 }
                 catch
                 {
-                    // Some filesystems do not support Replace; fall back to a copy.
                     File.Copy(tempPath, filePath, overwrite: true);
                     try { File.Delete(tempPath); } catch { /* ignore */ }
                 }
@@ -83,13 +82,9 @@ public static class SettingsService
         }
         catch
         {
-            // Ignore persistence failures; the session keeps working with in-memory values.
         }
     }
 
-    /// <summary>
-    /// Serializes settings, optionally omitting PIN and emergency-phrase data.
-    /// </summary>
     public static string Serialize(AppSettings settings, bool includeSecrets = true)
     {
         var copy = settings.Clone();
@@ -106,6 +101,7 @@ public static class SettingsService
             copy.ClearPanicPhrase();
             copy.MobileControlEnabled = false;
             copy.MobilePinReleaseAllowed = false;
+            copy.MobileTaskControlEnabled = false;
             copy.MobileServerCertificatePfx = null;
             copy.MobileDevices.Clear();
         }
@@ -113,9 +109,6 @@ public static class SettingsService
         return JsonSerializer.Serialize(copy, Options);
     }
 
-    /// <summary>
-    /// Parses and normalizes JSON settings from disk, the editor, or an import file.
-    /// </summary>
     public static bool TryParse(string json, out AppSettings settings, out string? error)
     {
         settings = new AppSettings();
@@ -150,9 +143,6 @@ public static class SettingsService
 
     private static void Normalize(AppSettings s)
     {
-        // Version 1 always stored the 30-minute safety ceiling, and it was applied even to
-        // "until I unlock" freezes. Version 2 makes the ceiling opt-in, so an old file's
-        // implicit 30 minutes becomes a genuinely indefinite freeze.
         if (s.SettingsVersion < 2)
         {
             s.SafetyMaxSeconds = 0;
@@ -165,6 +155,8 @@ public static class SettingsService
             s.FreezeUntilTime = null;
         if (s.ArmSeconds < 0) s.ArmSeconds = 0;
         if (s.SafetyMaxSeconds < 0) s.SafetyMaxSeconds = 0;
+        if (s.IdleFreezeMinutes < 1) s.IdleFreezeMinutes = 10;
+        if (s.IdleFreezeMinutes > 1440) s.IdleFreezeMinutes = 1440;
         if (s.FreezeCount < 0) s.FreezeCount = 0;
         if (s.TotalFrozenSeconds < 0) s.TotalFrozenSeconds = 0;
         if (s.PinFailures < 0) s.PinFailures = 0;
@@ -207,9 +199,6 @@ public static class SettingsService
         return value > max ? max : value;
     }
 
-    /// <summary>
-    /// Drops a secret hash that cannot be unwrapped on this Windows account.
-    /// </summary>
     private static (string? Salt, string? Hash) NormalizeSecret(string? salt, string? hash)
     {
         if (string.IsNullOrWhiteSpace(salt) || string.IsNullOrWhiteSpace(hash))

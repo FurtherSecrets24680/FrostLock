@@ -6,10 +6,6 @@ using Wpf.Ui.Controls;
 
 namespace FrostLock.Services;
 
-/// <summary>
-/// Applies the saved light/dark/system choice to WPF-UI's theme dictionary, and keeps a
-/// "follow Windows" choice live by listening for system preference changes.
-/// </summary>
 public static class ThemeService
 {
     private static AppTheme _current = AppTheme.System;
@@ -22,10 +18,6 @@ public static class ThemeService
         ApplyNow(theme);
     }
 
-    /// <summary>
-    /// Starts listening for Windows theme changes. Safe to call once at startup; it is
-    /// ignored when the user picked an explicit light or dark theme.
-    /// </summary>
     public static void StartWatching()
     {
         if (_watching) return;
@@ -37,14 +29,12 @@ public static class ThemeService
         }
         catch
         {
-            // SystemEvents needs an interactive session; without it the app still themes once.
             _watching = false;
         }
     }
 
     private static void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
-        // Windows reports light/dark switches as General (and colour changes as Color).
         if (e.Category is not (UserPreferenceCategory.General or UserPreferenceCategory.Color))
             return;
 
@@ -53,7 +43,6 @@ public static class ThemeService
         var app = Application.Current;
         if (app?.Dispatcher is not { } dispatcher || dispatcher.HasShutdownStarted) return;
 
-        // The event can arrive on a non-UI thread; theme changes must run on the dispatcher.
         dispatcher.BeginInvoke(new Action(() =>
         {
             if (_current == AppTheme.System) ApplyNow(AppTheme.System);
@@ -85,11 +74,6 @@ public static class ThemeService
         RefreshBackdrops(appTheme);
     }
 
-    /// <summary>
-    /// The theme dictionary updates brushes everywhere, but a Mica backdrop has to be told
-    /// about the new light/dark state. Overlay windows are deliberately skipped: the lock
-    /// screen is always dark.
-    /// </summary>
     private static void RefreshBackdrops(ApplicationTheme theme)
     {
         if (Application.Current is null) return;
@@ -104,7 +88,6 @@ public static class ThemeService
             }
             catch
             {
-                // A window without a handle yet will pick the backdrop up when shown.
             }
         }
     }

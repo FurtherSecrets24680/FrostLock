@@ -25,14 +25,11 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
-        // Input must never stay blocked because of an unhandled exception. The handlers
-        // only ask the blockers to release; they do not swallow the crash.
         DispatcherUnhandledException += (_, _) => ReleaseInput();
         AppDomain.CurrentDomain.UnhandledException += (_, _) => ReleaseInput();
 
         var options = CliOptions.Parse(e.Args);
 
-        // Console-only flags answer immediately: no window, no settings, no mutex.
         if (options.Help || options.Version)
         {
             ConsoleBridge.WriteLine(options.Help ? CliOptions.Usage : CliOptions.VersionLine);
@@ -53,14 +50,11 @@ public partial class App : System.Windows.Application
 
         ApplicationThemeManager.Apply(theme, WindowBackdropType.Mica, true);
 
-        // Always create the mutex, even with --allow-instance, so a command can still reach
-        // an instance that was started elevated with --allow-instance.
         _mutex = new Mutex(initiallyOwned: true, MutexName, out bool createdNew);
         if (!createdNew && !options.AllowInstance)
         {
             var reply = InstanceChannel.Send(options.ToCommand(), TimeSpan.FromSeconds(5));
 
-            // Only console commands print. A plain second launch just brings the window up.
             if (options.WantsConsole)
                 ConsoleBridge.WriteLine(reply.Message);
 
@@ -105,10 +99,6 @@ public partial class App : System.Windows.Application
         try { HardBlocker.EmergencyReleaseAll(); } catch { /* ignore */ }
     }
 
-    /// <summary>
-    /// Listens for commands from later launches. The handler runs on the pipe thread, so it
-    /// marshals to the dispatcher and blocks until the UI thread has the answer.
-    /// </summary>
     private void StartIpc()
     {
         _ipcCts = new CancellationTokenSource();
@@ -245,7 +235,6 @@ internal sealed class CliOptions
                 case "--extend":
                     o.Command ??= "extend";
 
-                    // Consume a duration only if the next token is not another flag.
                     if (i + 1 < args.Length && !args[i + 1].StartsWith('-'))
                     {
                         var extendText = Next(args, ref i);
@@ -422,10 +411,6 @@ internal sealed class CliOptions
         _ => new InstanceCommand { Command = "show" }
     };
 
-    /// <summary>
-    /// Reads a 24-hour clock time such as 15:30 or 9:05. The caller resolves it to the
-    /// next occurrence of that time.
-    /// </summary>
     public static bool TryParseClockTime(string text, out TimeSpan timeOfDay)
     {
         timeOfDay = default;
@@ -445,9 +430,6 @@ internal sealed class CliOptions
         return true;
     }
 
-    /// <summary>
-    /// Reads 90s, 25m, 1h, 1h30m or a bare number of seconds. 0 means "until I unlock".
-    /// </summary>
     public static bool TryParseDuration(string text, out int seconds)
     {
         seconds = 0;
@@ -489,7 +471,6 @@ internal sealed class CliOptions
             inNumber = false;
         }
 
-        // A trailing number with no unit counts as seconds.
         if (inNumber) total += number;
 
         if (total <= 0) return false;

@@ -5,12 +5,10 @@ namespace FrostLock.Interop;
 /// <summary>Win32 API declarations used by FrostLock.</summary>
 internal static class Native
 {
-    // Input freezing
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool BlockInput([MarshalAs(UnmanagedType.Bool)] bool fBlockIt);
 
-    // Low-level hooks
     internal const int WH_KEYBOARD_LL = 13;
     internal const int WH_MOUSE_LL = 14;
 
@@ -61,7 +59,6 @@ internal static class Native
         public IntPtr dwExtraInfo;
     }
 
-    // Global hotkeys
     internal const int WM_HOTKEY = 0x0312;
     internal const uint MOD_ALT = 0x0001;
     internal const uint MOD_CONTROL = 0x0002;
@@ -77,7 +74,6 @@ internal static class Native
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
-    // Window placement / focus
     internal static readonly IntPtr HWND_TOPMOST = new(-1);
     internal const uint SWP_SHOWWINDOW = 0x0040;
     internal const uint SWP_NOACTIVATE = 0x0010;
@@ -90,22 +86,33 @@ internal static class Native
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool SetForegroundWindow(IntPtr hWnd);
 
-    // Power / idle
     [DllImport("kernel32.dll", SetLastError = true)]
     internal static extern uint SetThreadExecutionState(uint esFlags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+
+    [DllImport("kernel32.dll")]
+    internal static extern ulong GetTickCount64();
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct LASTINPUTINFO
+    {
+        public uint cbSize;
+        public uint dwTime;
+    }
 
     internal const uint ES_CONTINUOUS = 0x80000000;
     internal const uint ES_SYSTEM_REQUIRED = 0x00000001;
     internal const uint ES_DISPLAY_REQUIRED = 0x00000002;
 
-    // Rounded window corners (Windows 11)
     internal const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     internal const int DWMWCP_ROUND = 2;
 
     [DllImport("dwmapi.dll")]
     internal static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
-    // Audio feedback
     internal const uint MB_ICONASTERISK = 0x00000040;
     internal const uint MB_ICONEXCLAMATION = 0x00000030;
 
@@ -113,12 +120,10 @@ internal static class Native
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool MessageBeep(uint uType);
 
-    // Session lock on release
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool LockWorkStation();
 
-    // DPAPI: keep the PIN hash unreadable in the settings file.
     internal const uint CRYPTPROTECT_UI_FORBIDDEN = 0x1;
 
     [StructLayout(LayoutKind.Sequential)]
@@ -161,8 +166,6 @@ internal static class Native
         {
             Marshal.Copy(data, 0, dataHandle, data.Length);
 
-            // pOptionalEntropy is a DATA_BLOB pointer, not a raw byte pointer. Marshalling
-            // raw bytes here makes CryptProtectData fail with ERROR_INVALID_PARAMETER.
             if (entropy.Length > 0)
             {
                 entropyDataHandle = Marshal.AllocHGlobal(entropy.Length);

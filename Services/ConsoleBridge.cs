@@ -4,9 +4,6 @@ using System.Text;
 
 namespace FrostLock.Services;
 
-/// <summary>
-/// Attaches terminal output for console-oriented command-line options.
-/// </summary>
 internal static class ConsoleBridge
 {
     private const int AttachParentProcess = -1;
@@ -45,7 +42,6 @@ internal static class ConsoleBridge
         }
         catch
         {
-            // No console to write to; the command still ran.
         }
     }
 

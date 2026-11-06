@@ -6,9 +6,6 @@ using System.Threading;
 
 namespace FrostLock.Services;
 
-/// <summary>
-/// Sends command-line requests to the running FrostLock instance over a named pipe.
-/// </summary>
 public sealed class InstanceCommand
 {
     public string Command { get; set; } = "show";
@@ -73,10 +70,6 @@ public static class InstanceChannel
         }
     }
 
-    /// <summary>
-    /// Listens in the background. The handler runs on the server thread and is expected to
-    /// marshal to the UI thread itself.
-    /// </summary>
     public static Task StartAsync(Func<InstanceCommand, InstanceReply> handler, CancellationToken token)
         => Task.Run(() => AcceptLoopAsync(handler, token), CancellationToken.None);
 
@@ -126,7 +119,6 @@ public static class InstanceChannel
             }
             catch
             {
-                // Another instance may temporarily own the pipe during an elevated relaunch.
                 try { await Task.Delay(250, token).ConfigureAwait(false); }
                 catch (OperationCanceledException) { break; }
             }

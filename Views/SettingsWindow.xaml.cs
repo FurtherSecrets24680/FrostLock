@@ -66,8 +66,6 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
     {
         if (section == SettingsSection.Hotkeys)
         {
-            // Opening Settings and navigating can happen in the same dispatcher turn.
-            // Wait for layout so BringIntoView has a realized position in the ScrollViewer.
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
                 if (!IsLoaded || _section != SettingsSection.Hotkeys) return;
@@ -96,6 +94,7 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         EnableMobile.IsChecked = _settings.MobileControlEnabled;
         AllowPublicTesting.IsChecked = _settings.AllowMobileOnPublicProfileForTesting;
         AllowPinRelease.IsChecked = _settings.MobilePinReleaseAllowed;
+        AllowTaskControl.IsChecked = _settings.MobileTaskControlEnabled;
 
         SelectTag(StyleBox, _settings.LockScreenStyle.ToString());
         SelectTag(DisplaysBox, _settings.LockScreenOnAllDisplays ? "All" : "Primary");
@@ -109,6 +108,9 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         ArmBox.Value = _settings.ArmSeconds;
         SafetyBox.Value = _settings.SafetyMaxSeconds / 60;
         HoldBox.Value = _settings.UnlockHoldMs / 1000.0;
+        ChkIdleFreeze.IsChecked = _settings.IdleFreezeEnabled;
+        IdleBox.Value = _settings.IdleFreezeMinutes;
+        UpdateIdleBoxState();
 
         TxtUnlockHotkey.Text = _settings.UnlockHotkey;
         TxtStartHotkey.Text = _settings.StartHotkey;
@@ -297,6 +299,10 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         BindToggle(ChkCheckUpdates, v => _settings.CheckForUpdatesOnStartup = v);
         BindToggle(ChkPlaySound, v => _settings.PlaySound = v);
         BindToggle(ChkLockOnRelease, v => _settings.LockWindowsOnRelease = v);
+        BindToggle(ChkIdleFreeze, v => _settings.IdleFreezeEnabled = v);
+
+        ChkIdleFreeze.Checked += (_, _) => UpdateIdleBoxState();
+        ChkIdleFreeze.Unchecked += (_, _) => UpdateIdleBoxState();
 
         TxtLockMessage.TextChanged += (_, _) =>
         {
@@ -305,18 +311,15 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
             Report(_validateAndApply());
         };
 
-        // A NumberBox only moves typed text into Value on Enter, a spin click or focus
-        // loss, so save on ValueChanged too. Enter is the usual way to set a number and
-        // it fires ValueChanged but not LostFocus.
         ArmBox.ValueChanged += (_, _) => CommitNumbers();
         SafetyBox.ValueChanged += (_, _) => CommitNumbers();
         HoldBox.ValueChanged += (_, _) => CommitNumbers();
+        IdleBox.ValueChanged += (_, _) => CommitNumbers();
         ArmBox.LostFocus += (_, _) => CommitNumbers();
         SafetyBox.LostFocus += (_, _) => CommitNumbers();
         HoldBox.LostFocus += (_, _) => CommitNumbers();
+        IdleBox.LostFocus += (_, _) => CommitNumbers();
 
-        // Dropping focus makes the boxes commit any text that was typed but never
-        // confirmed, so a value set just before closing still sticks.
         Closing += (_, _) =>
         {
             Keyboard.ClearFocus();
@@ -333,8 +336,6 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
 
         PreviewKeyDown += (_, e) =>
         {
-            // Esc closes the window, except while a hotkey field has focus, where the help
-            // text promises it only abandons the recording.
             if (e.Key == Key.Escape && !IsHotkeyFieldFocused()) Close();
         };
 
@@ -358,7 +359,14 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         }
 
         _settings.MobileControlEnabled = EnableMobile.IsChecked == true;
-        if (!_settings.MobileControlEnabled) RevokeDisplayedInvite();
+        if (!_settings.MobileControlEnabled)
+        {
+            _settings.MobileTaskControlEnabled = false;
+            _loading = true;
+            AllowTaskControl.IsChecked = false;
+            _loading = false;
+            RevokeDisplayedInvite();
+        }
         UpdateMobileDetails();
         Report(_validateAndApply());
         await _mobile.StartAsync();
@@ -384,6 +392,24 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         await _mobile.StopAsync();
         await _mobile.StartAsync();
         UpdateMobileDetails();
+    }
+
+    private void AllowTaskControl_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        if (AllowTaskControl.IsChecked == true
+            && AppDialog.Show(this,
+                "Any paired phone will be able to end programs and start new ones on this PC. FrostLock and Windows core processes stay protected, but unsaved work in a closed program can be lost. Continue?",
+                "Enable phone task control", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            _loading = true;
+            AllowTaskControl.IsChecked = false;
+            _loading = false;
+            return;
+        }
+
+        _settings.MobileTaskControlEnabled = AllowTaskControl.IsChecked == true;
+        Report(_validateAndApply());
     }
 
     private void AllowPinRelease_Changed(object sender, RoutedEventArgs e)
@@ -527,7 +553,6 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         UpdateMobileDetails();
     }
 
-    // True while one of the hotkey capture fields owns the keyboard focus.
     private bool IsHotkeyFieldFocused()
         => ReferenceEquals(Keyboard.FocusedElement, TxtUnlockHotkey)
            || ReferenceEquals(Keyboard.FocusedElement, TxtStartHotkey)
@@ -644,25 +669,31 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         if (HoldBox.Value is { } hold && !double.IsNaN(hold))
             _settings.UnlockHoldMs = (int)Math.Round(Math.Clamp(hold, 0d, 5d) * 1000);
 
+        if (IdleBox.Value is { } idle && !double.IsNaN(idle))
+            _settings.IdleFreezeMinutes = (int)Math.Round(Math.Clamp(idle, 1d, 1440d));
+
         _loading = true;
         ArmBox.Value = _settings.ArmSeconds;
         SafetyBox.Value = _settings.SafetyMaxSeconds / 60;
         HoldBox.Value = _settings.UnlockHoldMs / 1000.0;
+        IdleBox.Value = _settings.IdleFreezeMinutes;
         _loading = false;
 
         Report(_validateAndApply());
     }
 
-    /// <summary>
-    /// Records the combination pressed in a hotkey field instead of letting the user type
-    /// one. Modifier-only presses are ignored; a modifier is required.
-    /// </summary>
+    private void UpdateIdleBoxState()
+    {
+        var enabled = ChkIdleFreeze.IsChecked == true;
+        IdleBox.IsEnabled = enabled;
+        IdleOptions.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (_loading) return;
         if (sender is not Wpf.Ui.Controls.TextBox box) return;
 
-        // Alt combinations arrive as Key.System with the real key in SystemKey.
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
 
         if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt
@@ -754,8 +785,6 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
-    // Settings file
-
     private void EditJson_Click(object sender, RoutedEventArgs e)
     {
         var editor = new SettingsFileWindow(_settings, s => ApplyImportedSettings(s)) { Owner = this };
@@ -780,8 +809,6 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
 
         try
         {
-            // The PIN is DPAPI-bound to this Windows account, so it is never exported. An
-            // import leaves the current PIN untouched.
             File.WriteAllText(dialog.FileName, SettingsService.Serialize(_settings, includeSecrets: false));
             ShowConfigStatus(Wpf.Ui.Controls.InfoBarSeverity.Success,
                 "Settings exported", "Saved without the PIN. " + dialog.FileName);
@@ -854,11 +881,6 @@ public partial class SettingsWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
-    /// <summary>
-    /// Applies imported settings, including the PIN and statistics, then refreshes the controls.
-    /// Imported files normally carry no PIN, so <paramref name="preservePin"/> keeps the one
-    /// already configured on this PC.
-    /// </summary>
     private string? ApplyImportedSettings(AppSettings imported, bool preservePin = false)
     {
         var pinSalt = _settings.PinSalt;

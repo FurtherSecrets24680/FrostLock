@@ -10,10 +10,6 @@ using FrostLock.Models;
 
 namespace FrostLock.Views;
 
-/// <summary>
-/// A full-screen "lock screen" placed on a single monitor. The controller creates one per
-/// screen, drives it through <see cref="UpdateState"/>, and closes it when the freeze ends.
-/// </summary>
 public partial class OverlayWindow : Window
 {
     private readonly System.Windows.Forms.Screen _screen;
@@ -56,8 +52,6 @@ public partial class OverlayWindow : Window
         ApplyStyle(style);
         ApplyBackground(style);
 
-        // During the arm delay the freeze is still cancellable, so Esc is a real abort.
-        // Once frozen, Esc does nothing; PIN mode keeps the PIN as the only exit.
         PreviewKeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape && _canCancelArm)
@@ -88,10 +82,6 @@ public partial class OverlayWindow : Window
         Loaded += (_, _) => PositionToScreen();
     }
 
-    /// <summary>
-    /// The see-through style needs a layered window, so this runs before the window is
-    /// shown: AllowsTransparency can only change while no handle exists yet.
-    /// </summary>
     private void ApplyStyle(LockScreenStyle style)
     {
         if (style != LockScreenStyle.Dim) return;
@@ -130,7 +120,6 @@ public partial class OverlayWindow : Window
         }
         catch
         {
-            // A bad or unsupported image falls back to the plain cover.
         }
     }
 
@@ -209,8 +198,6 @@ public partial class OverlayWindow : Window
 
         UnlockButton.Content = arming ? "Cancel freeze" : "Unlock now";
 
-        // PIN mode owns the release: show the prompt instead of the Unlock button (the
-        // button is still there during the arm delay so the freeze can be cancelled).
         bool pinMode = !arming && state.RequiresPin && _verifyPin is not null;
         PinPanel.Visibility = pinMode ? Visibility.Visible : Visibility.Collapsed;
 
@@ -227,8 +214,6 @@ public partial class OverlayWindow : Window
         PinBox.IsEnabled = !cooling;
         PinSubmitButton.IsEnabled = !cooling;
 
-        // The emergency phrase is offered only where it is the only way back in: the PIN
-        // lock screen, and only when the user has configured one.
         bool panicAvailable = pinMode && _verifyPhrase is not null && state.PanicAvailable;
 
         PanicRevealButton.Visibility = panicAvailable && !_panicRevealed
@@ -400,8 +385,6 @@ public partial class OverlayWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        // A close request from the user (Alt+F4, task manager, etc.) counts as "release".
-        // except in PIN mode, where only the PIN may release the lock.
         if (!AllowClose)
         {
             e.Cancel = true;

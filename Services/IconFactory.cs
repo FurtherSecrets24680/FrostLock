@@ -8,8 +8,6 @@ namespace FrostLock.Services;
 /// <summary>Loads the packaged .ico for the tray and window chrome, with a safe fallback.</summary>
 public static class IconFactory
 {
-    // Assembly-qualified so the icon still resolves when FrostLock is loaded by another
-    // host (design tools, tests) instead of being the entry assembly.
     private static readonly Uri IcoUri = new(
         $"pack://application:,,,/{typeof(IconFactory).Assembly.GetName().Name};component/Assets/frostlock.ico",
         UriKind.Absolute);

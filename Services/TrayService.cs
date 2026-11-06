@@ -10,11 +10,6 @@ using WinForms = System.Windows.Forms;
 
 namespace FrostLock.Services;
 
-/// <summary>
-/// Notification-area icon plus its context menu. The icon itself comes from WinForms
-/// (there is no WPF equivalent), while the menu is a WPF one so it picks up the same
-/// Fluent styling as the rest of the app.
-/// </summary>
 public sealed class TrayService : IDisposable
 {
     private readonly WinForms.NotifyIcon _icon;
@@ -177,10 +172,6 @@ public sealed class TrayService : IDisposable
         _mouseHook = IntPtr.Zero;
     }
 
-    /// <summary>
-    /// Updates the menu for the current freeze. <paramref name="canRelease"/> is false in
-    /// PIN mode, where Exit must remain disabled.
-    /// </summary>
     public void SetFrozen(bool frozen, bool canRelease = true, bool canExtend = false)
     {
         _frozen = frozen;
@@ -192,7 +183,6 @@ public sealed class TrayService : IDisposable
 
     public void SetTooltip(string text)
     {
-        // NotifyIcon.Text is capped at 63 characters.
         _icon.Text = text.Length > 63 ? text[..63] : text;
     }
 
@@ -215,7 +205,6 @@ public sealed class TrayService : IDisposable
         }
         catch
         {
-            // Balloons are best-effort.
         }
     }
 

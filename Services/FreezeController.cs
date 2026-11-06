@@ -133,8 +133,6 @@ public sealed class FreezeController : IDisposable
         _lastExtendUtc = default;
         Remaining = null;
 
-        // A fresh throttle per freeze, seeded from disk so a restart or reboot does not
-        // clear the cooldown or the escalation.
         _pinThrottle = mode == FreezeMode.Pin
             ? new PinThrottle(_settings.PinFailures, _settings.PinLockedUntilUtc,
                 PersistPinThrottle, _settings.PinLockoutLevel)
@@ -153,7 +151,6 @@ public sealed class FreezeController : IDisposable
             ? TimeSpan.FromSeconds(_settings.SafetyMaxSeconds)
             : TimeSpan.Zero;
 
-        // Hard and USB-triggered freezes cannot use the extension shortcut.
         _extendBinding = mode != FreezeMode.Hard
                          && allowUnlockHotkey
                          && _planned is not null
@@ -164,8 +161,6 @@ public sealed class FreezeController : IDisposable
         _armSeconds = Math.Max(0, armSeconds);
         _armStartedUtc = DateTime.UtcNow;
 
-        // Mark the freeze as live *before* anything can fail, so a failure during Engage()
-        // can always tear the overlays down through Release().
         _phase = FreezePhase.Arming;
 
         ShowOverlays();
@@ -189,8 +184,6 @@ public sealed class FreezeController : IDisposable
 
         if (_mode == FreezeMode.Hard)
         {
-            // The blocker owns its own deadline and a watchdog. If the UI thread stalls,
-            // input is still released instead of waiting for Ctrl+Alt+Del.
             DateTime? releaseAt = null;
             if (_planned is { } planned)
                 releaseAt = _frozenAtUtc + planned;
@@ -213,9 +206,6 @@ public sealed class FreezeController : IDisposable
         }
         else
         {
-            // PIN mode keeps the keyboard and mouse alive so the PIN can be typed, but it
-            // always swallows Win / Alt+Tab / Alt+F4 / Ctrl+Esc, like Strict does, and it
-            // offers no hotkey bypass: the PIN is the only way out.
             bool pinMode = _mode == FreezeMode.Pin;
 
             var binding = !pinMode && _allowUnlockHotkey && Hotkeys.TryParse(_settings.UnlockHotkey, out var parsed)
@@ -224,9 +214,6 @@ public sealed class FreezeController : IDisposable
 
             _hook = new HookBlocker
             {
-                // Gentle mode is intentionally non-blocking: let Windows shortcuts such
-                // as Task Manager work. Strict can optionally suppress them; PIN always
-                // suppresses them so the lock screen remains the release surface.
                 BlockSystemKeys = pinMode || (_mode == FreezeMode.Strict && _settings.BlockSystemKeys),
                 BlockAllKeys = _mode == FreezeMode.Strict && _settings.BlockAllKeys,
                 BlockMouse = _mode == FreezeMode.Strict && _settings.BlockMouse,
@@ -278,10 +265,6 @@ public sealed class FreezeController : IDisposable
         });
     }
 
-    /// <summary>
-    /// Release requested from outside the lock screen (tray, hotkey, CLI, main window).
-    /// A PIN freeze deliberately refuses, so those paths cannot bypass the PIN.
-    /// </summary>
     public bool RequestRelease(FreezeEndReason reason)
     {
         if (RequiresPin) return false;
@@ -306,7 +289,6 @@ public sealed class FreezeController : IDisposable
     {
         if (!CanExtend || extra <= TimeSpan.Zero) return false;
 
-        // Ignore a near-simultaneous second trigger.
         var now = DateTime.UtcNow;
         if (_lastExtendUtc != default && now - _lastExtendUtc < ExtendDebounce)
             return false;
@@ -453,7 +435,6 @@ public sealed class FreezeController : IDisposable
             remaining = TimeSpan.FromSeconds(left);
             progress = _armSeconds <= 0 ? 1.0 : Math.Clamp(left / _armSeconds, 0, 1);
             hint = "Starting soon. Press Esc or click Cancel to abort.";
-            // Escape is still deliverable during arming.
             mouseBlocked = false;
             interactive = true;
             canExtend = false;
@@ -473,8 +454,6 @@ public sealed class FreezeController : IDisposable
             }
             else
             {
-                // An "until I unlock" freeze is truly indefinite: no countdown is shown, even
-                // when the optional safety ceiling is enabled (that ceiling is a silent backstop).
                 remaining = null;
                 progress = 1.0;
             }
@@ -482,7 +461,6 @@ public sealed class FreezeController : IDisposable
             hint = BuildUnlockHint(mouseBlocked);
             interactive = !mouseBlocked;
 
-            // If the mouse is blocked, extension needs a working shortcut.
             canExtend = CanExtend && (_extendBinding.IsValid || !mouseBlocked);
 
             extendHint = !canExtend
@@ -527,9 +505,6 @@ public sealed class FreezeController : IDisposable
         Tick?.Invoke(this, state);
     }
 
-    /// <summary>
-    /// Hints shown on the lock screen without exposing the unlock combination.
-    /// </summary>
     private string BuildUnlockHint(bool mouseBlocked)
     {
         if (_mode == FreezeMode.Hard)
@@ -611,13 +586,10 @@ public sealed class FreezeController : IDisposable
     {
         bool pinMode = _mode == FreezeMode.Pin;
 
-        // PIN mode always needs a lock screen: it is the only surface where the PIN can be
-        // typed. "No lock screen" therefore falls back to a solid one for that mode.
         var style = _settings.LockScreenStyle;
         if (pinMode && style == LockScreenStyle.None)
             style = LockScreenStyle.Solid;
 
-        // With no cover, the hooks alone do the work and nothing is drawn.
         if (style == LockScreenStyle.None) return;
 
         var screens = Screen.AllScreens

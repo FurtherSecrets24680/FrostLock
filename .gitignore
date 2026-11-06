@@ -12,6 +12,7 @@ docs/
 # IDE
 .vs/
 .idea/
+.openidea/
 *.user
 *.suo
 

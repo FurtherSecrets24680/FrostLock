@@ -51,6 +51,7 @@ The **Compare all locking modes** link below the Freeze card opens a comparison 
 ## Features
 
 - **Arm delay**, 3 seconds by default: a cancellable countdown on the lock screen before input is blocked. Press Esc or click **Cancel freeze** to abort.
+- **Freeze when idle**: optionally start a freeze after a chosen number of minutes without keyboard or mouse input. It uses the selected mode and duration, and the arm delay still lets you cancel. Hard and USB key mode are skipped, since they need a prompt or a drive. Waking the PC, unlocking Windows, or ending a freeze restarts the countdown.
 - **Safety auto-release**: an optional ceiling for an "until I unlock" freeze. Off by default, so that option means what it says.
 - **Freeze until a clock time**: choose a 24-hour time in the Freeze card. If that time has passed today, FrostLock schedules it for tomorrow and previews the deadline.
 - **Extend a running freeze**: click **+5 min** on the lock screen or press `Ctrl+Alt+E`. It also works when the taskbar and Task Manager are inaccessible. Strict mode detects the combo inside its keyboard hook; other supported modes use a global hotkey. Extension is unavailable for indefinite, Hard, and USB-triggered freezes, and never passes the safety cap or 24-hour maximum.
@@ -59,9 +60,11 @@ The **Compare all locking modes** link below the Freeze card opens a comparison 
 - **Lock screen style**: a solid cover (default), a see-through dim veil, or none at all (input-only), with an optional message line and an optional background image. PIN mode always shows a cover.
 - **Lock Windows when the freeze ends**: an opt-in switch that calls `LockWorkStation()` after the freeze, so the desktop is protected when you walk away. Off by default.
 - **USB key mode**: select a removable drive on the main screen and start watching. Choose either **Plug to freeze; unplug to release** or **Plug to release; unplug to freeze**. FrostLock's start, unlock and extend hotkeys are disabled in this mode. Use **Stop watching** in the app or tray to stop the watcher and release a USB-triggered freeze. The volume serial can be copied, so this is a convenience trigger, not secure authentication; USB cannot release PIN mode.
-- **FrostLock Remote (Android companion)**: download it from the [Android releases page](https://github.com/FurtherSecrets24680/Frostlock-Remote/releases). Enable LAN control in **Settings → LAN & phone**, create a short-lived QR pairing code, and approve each new phone on the PC. LAN uses HTTPS on private IPv4 addresses and refuses to start while a Public Windows firewall profile is active, unless the trusted-network testing override is enabled. Phones can check status, start a 5 to 60 minute freeze in the saved Gentle or Strict mode, and release eligible freezes. Hard and USB-triggered freezes are not phone-controllable. PIN release stays disabled unless separately enabled on the PC; enabling it makes each paired phone an alternate PIN-release credential. No cloud relay or router port forwarding is used. Windows Firewall may require an inbound rule for FrostLock on the Private profile for LAN control.
+- **FrostLock Remote (Android companion)**: check status and start or release eligible freezes from a paired Android phone. Optional **Allow phone task control** adds a process list, task actions, and a command box.
+  - Pair with a short-lived QR code in **Settings → LAN & phone**, then approve the phone on the PC. LAN control stays on private networks; Windows Firewall may need an inbound rule for the Private profile. Hard and USB-triggered freezes stay PC-only, and remote PIN release is opt-in.
+  - See the [FrostLock Remote GitHub page](https://github.com/FurtherSecrets24680/Frostlock-Remote) for the full feature list, download links, pairing steps, and security details.
 - **Multi-monitor**: one lock screen per display, or the primary display only.
-- **Tray menu**: quick freeze for 5, 15, 30 or 60 minutes or until unlock, plus freeze, release, open, settings and exit. Release and exit are disabled during a PIN lock.
+- **Tray menu**: quick freeze for 5, 15, 30 or 60 minutes, 2 or 4 hours, or until unlock, plus freeze now, stop USB watching, open, settings and exit. Exit is disabled during a PIN lock.
 - **Start with Windows**, start hidden, minimise or close to tray.
 - **Display stays awake** while frozen.
 - **Clock**: a wall clock, plus the projected unlock time for timed freezes. Toggleable.
@@ -100,9 +103,9 @@ Preferences are grouped into seven cards, and each change applies and saves stra
 | Card | Options |
 | --- | --- |
 | **General** | Theme (`System`, `Light`, `Dark`), start with Windows, start hidden (off by default), minimise to tray, close keeps running, keep the display awake, sound, update check on start. |
-| **LAN & phone** | Enable LAN control, optionally allow connections on trusted test networks, pair and revoke phones, and optionally allow paired phones to release PIN freezes. |
+| **LAN & phone** | Enable LAN control, optionally allow connections on trusted test networks, pair and revoke phones, optionally allow paired phones to release PIN freezes, and optionally allow phone task control. |
 | **Lock screen** | Style (`Solid`, `Dim`, `None`), displays (`All`, `Primary`), countdown, clock, optional message, optional background image. |
-| **Safety** | Arm delay, optional safety auto-release ceiling, and **Lock Windows when the freeze ends**. |
+| **Safety** | Arm delay, optional safety auto-release ceiling, optional **Freeze when idle**, and **Lock Windows when the freeze ends**. |
 | **PIN** | Set, change or remove the PIN. At least 4 characters. |
 | **Hotkeys** | Unlock combo, global start and extend hotkeys, and the hold-to-unlock time. |
 | **Configuration** | Edit the JSON directly, export a backup, import one, or open the settings folder. |
@@ -173,14 +176,14 @@ dotnet test tests\FrostLock.Tests\FrostLock.Tests.csproj -c Release
 .\installer\build-installer.cmd
 ```
 
-The result is `installer\Output\FrostLock-Setup-1.5.0.exe`, about 4 MB, plus a `.sha256` sidecar containing its SHA-256 value. Setup checks for the .NET 10 Desktop Runtime and, when it is missing, offers to download and install it from Microsoft (about 60 MB). It installs per user to `%LocalAppData%\Programs\FrostLock` without a UAC prompt; the install-mode page can switch to an all-users install. Setup adds a Start Menu shortcut, an optional desktop shortcut, an Apps & features entry and an uninstaller, and asks you to close a running FrostLock first. Uninstalling keeps `%AppData%\FrostLock\settings.json`.
+The result is `installer\Output\FrostLock-Setup-1.6.0.exe`, about 8 MB, plus a `.sha256` sidecar containing its SHA-256 value. Setup checks for the .NET 10 Desktop Runtime and, when it is missing, offers to download and install it from Microsoft (about 60 MB). It installs per user to `%LocalAppData%\Programs\FrostLock` without a UAC prompt; the install-mode page can switch to an all-users install. Setup adds a Start Menu shortcut, an optional desktop shortcut, an Apps & features entry and an uninstaller, and asks you to close a running FrostLock first. Uninstalling keeps `%AppData%\FrostLock\settings.json`.
 
 For a release, upload the installer to GitHub Releases so GitHub publishes its asset digest, and include the `.sha256` value in the release notes for people verifying the download manually. The in-app updater uses GitHub's asset digest metadata, not the sidecar; it refuses auto-install if that metadata is absent or invalid.
 
 To verify a downloaded installer in PowerShell, compare its hash with the release value:
 
 ```powershell
-(Get-FileHash .\FrostLock-Setup-1.5.0.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-FileHash .\FrostLock-Setup-1.6.0.exe -Algorithm SHA256).Hash.ToLowerInvariant()
 ```
 
 > [!IMPORTANT]
@@ -202,6 +205,7 @@ FrostLock/
     MobileUnlockWindow.xaml(.cs) PIN entry and mobile PIN-release confirmation
   Services/
     FreezeController.cs      Freeze lifecycle: arm → engage → tick → release → stats
+    IdleMonitorService.cs    System-wide idle detection for the idle-freeze trigger
     UsbDriveService.cs       Removable-drive discovery and plug/unplug monitoring
     HookBlocker.cs           WH_KEYBOARD_LL / WH_MOUSE_LL blocking + combo detection
     HardBlocker.cs           Win32 BlockInput on a dedicated block/unblock thread
@@ -214,13 +218,14 @@ FrostLock/
     StartupService.cs        HKCU Run entry
     ThemeService.cs          Light/dark/System theming, follows Windows live
     UpdateService.cs         GitHub release check, installer download and SHA-256 verification
-    MobileControlService.cs  HTTPS LAN API, phone pairing, and remote freeze controls
+    MobileControlService.cs  HTTPS LAN API, phone pairing, remote freeze controls and task endpoints
+    TaskManagerService.cs    Process list, icons, end/restart and start-task support for the phone
     MobilePairingCode.cs     Short-lived encrypted pairing code
     IconFactory.cs           Packaged .ico loading
   Interop/Native.cs          All P/Invoke in one place
   Models/                    AppSettings, OverlayState, PairedMobileDevice, enums
   Assets/frostlock.ico       App icon (10 sizes, generated from frostlock.svg)
-  tests/FrostLock.Tests/     xUnit tests for throttling, settings, clock time, CLI and update digests
+  tests/FrostLock.Tests/     xUnit tests for throttling, settings, clock time, CLI, idle monitoring and update digests
 ```
 
 ## Limitations

@@ -4,11 +4,6 @@ using FrostLock.Interop;
 
 namespace FrostLock.Services;
 
-/// <summary>
-/// Salts and hashes the PIN with PBKDF2-SHA256 so the settings file never holds the PIN
-/// itself. The hash is additionally wrapped with DPAPI before it is written to disk.
-/// Verification is constant-time.
-/// </summary>
 public static class PinService
 {
     private const int Iterations = 120_000;

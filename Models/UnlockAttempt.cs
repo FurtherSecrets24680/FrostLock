@@ -1,8 +1,5 @@
 namespace FrostLock.Models;
 
-/// <summary>
-/// Result of a PIN or emergency-phrase attempt.
-/// </summary>
 public readonly record struct UnlockAttempt(
     bool Success,
     bool LockedOut,

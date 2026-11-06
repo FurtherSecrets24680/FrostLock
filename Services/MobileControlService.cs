@@ -66,9 +66,6 @@ public sealed class MobileControlService : IDisposable
     private const int MaxBodyBytes = 16 * 1024;
     private static readonly TimeSpan InviteLifetime = TimeSpan.FromMinutes(3);
 
-    // SslStream on Windows cannot use ephemeral private keys ("the platform does not
-    // support ephemeral keys"), so the PFX key must live in the user's key store while
-    // the listener runs. The PFX itself stays DPAPI-protected in settings.
     private const X509KeyStorageFlags TlsKeyFlags = X509KeyStorageFlags.UserKeySet;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -84,6 +81,7 @@ public sealed class MobileControlService : IDisposable
     private readonly Func<MobileLockSettings, string?> _updateLockSettings;
     private readonly Func<bool, string?> _releaseFreeze;
     private readonly Func<PendingMobilePairing, bool> _approvePairing;
+    private readonly TaskManagerService _tasks = new();
     private readonly SemaphoreSlim _pairingGate = new(1, 1);
     private readonly SemaphoreSlim _connectionGate = new(16, 16);
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
@@ -155,9 +153,6 @@ public sealed class MobileControlService : IDisposable
             var desired = addresses.Select(address => address.ToString()).ToHashSet(StringComparer.Ordinal);
             if (_listeners.Count == desired.Count && _listeners.Keys.All(desired.Contains)) return;
 
-            // DHCP, Wi-Fi roaming, VPN changes, and adapter reconnects can all change a
-            // local address while FrostLock remains running. Drop stale listeners and
-            // refresh them before showing a new invite address.
             await StopListenersCoreAsync().ConfigureAwait(false);
             _lastError = null;
 
@@ -220,8 +215,6 @@ public sealed class MobileControlService : IDisposable
     {
         try
         {
-            // Rebind even when DHCP returns the same address. A listener bound before a
-            // Wi-Fi adapter restart can remain stale after the interface comes back.
             await _lifecycleGate.WaitAsync().ConfigureAwait(false);
             try
             {
@@ -364,6 +357,10 @@ public sealed class MobileControlService : IDisposable
             ("POST", "/v1/lock-settings") => Authenticated(request, () => UpdateLockSettings(request)),
             ("POST", "/v1/freeze") => Authenticated(request, () => Freeze(request)),
             ("POST", "/v1/unlock") => Authenticated(request, () => Unlock(request)),
+            ("GET", "/v1/tasks") => Authenticated(request, TaskList),
+            ("POST", "/v1/tasks/kill") => Authenticated(request, () => EndTask(request)),
+            ("POST", "/v1/tasks/start") => Authenticated(request, () => StartTask(request)),
+            ("POST", "/v1/tasks/icons") => Authenticated(request, () => TaskIcons(request)),
             _ => ApiResponse.Fail("not_found", "Route not found.")
         };
     }
@@ -660,6 +657,107 @@ public sealed class MobileControlService : IDisposable
         return response;
     }
 
+    private ApiResponse TaskList()
+    {
+        if (!_settings.MobileTaskControlEnabled) return TaskControlDisabled();
+        try
+        {
+            return ApiResponse.Ok(_tasks.GetSnapshot());
+        }
+        catch (Exception ex)
+        {
+            return ApiResponse.Fail("task_control_failed", $"FrostLock could not read the task list: {ex.Message}", 500);
+        }
+    }
+
+    private ApiResponse EndTask(HttpRequest request)
+    {
+        if (!_settings.MobileTaskControlEnabled) return TaskControlDisabled();
+        try
+        {
+            using var json = JsonDocument.Parse(request.Body);
+            var root = json.RootElement;
+            if (!root.TryGetProperty("pid", out var pidValue) || !pidValue.TryGetInt32(out var pid))
+                return ApiResponse.Fail("bad_request", "A process ID is required.", 400);
+            var force = root.TryGetProperty("force", out var forceValue)
+                && forceValue.ValueKind is JsonValueKind.True or JsonValueKind.False
+                && forceValue.GetBoolean();
+            return ApiResponse.Ok(_tasks.EndTask(pid, force));
+        }
+        catch (TaskControlException ex)
+        {
+            return ApiResponse.Fail(ex.Code, ex.Message, ex.Status);
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return ApiResponse.Fail("bad_request", "The task request was incomplete or invalid.", 400);
+        }
+    }
+
+    private ApiResponse StartTask(HttpRequest request)
+    {
+        if (!_settings.MobileTaskControlEnabled) return TaskControlDisabled();
+        try
+        {
+            using var json = JsonDocument.Parse(request.Body);
+            var root = json.RootElement;
+            var path = RequiredString(root, "path");
+            var workingDirectory = root.TryGetProperty("workingDirectory", out var directoryValue)
+                && directoryValue.ValueKind == JsonValueKind.String
+                ? directoryValue.GetString()
+                : null;
+            var arguments = new List<string>();
+            if (root.TryGetProperty("arguments", out var argumentsValue) && argumentsValue.ValueKind != JsonValueKind.Null)
+            {
+                if (argumentsValue.ValueKind != JsonValueKind.Array)
+                    return ApiResponse.Fail("bad_request", "Arguments must be a list of strings.", 400);
+                foreach (var argument in argumentsValue.EnumerateArray())
+                {
+                    if (argument.ValueKind != JsonValueKind.String)
+                        return ApiResponse.Fail("bad_request", "Arguments must be a list of strings.", 400);
+                    arguments.Add(argument.GetString() ?? string.Empty);
+                }
+            }
+            return ApiResponse.Ok(_tasks.StartTask(path, arguments, workingDirectory));
+        }
+        catch (TaskControlException ex)
+        {
+            return ApiResponse.Fail(ex.Code, ex.Message, ex.Status);
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return ApiResponse.Fail("bad_request", "The start request was incomplete or invalid.", 400);
+        }
+    }
+
+    private ApiResponse TaskIcons(HttpRequest request)
+    {
+        if (!_settings.MobileTaskControlEnabled) return TaskControlDisabled();
+        try
+        {
+            using var json = JsonDocument.Parse(request.Body);
+            if (!json.RootElement.TryGetProperty("keys", out var keysValue) || keysValue.ValueKind != JsonValueKind.Array)
+                return ApiResponse.Fail("bad_request", "A list of icon keys is required.", 400);
+            var keys = new List<string>();
+            foreach (var key in keysValue.EnumerateArray())
+            {
+                if (key.ValueKind != JsonValueKind.String) return ApiResponse.Fail("bad_request", "Icon keys must be strings.", 400);
+                keys.Add(key.GetString() ?? string.Empty);
+            }
+            return ApiResponse.Ok(new { icons = _tasks.GetIcons(keys) });
+        }
+        catch (JsonException)
+        {
+            return ApiResponse.Fail("bad_request", "The icon request was incomplete or invalid.", 400);
+        }
+    }
+
+    private static ApiResponse TaskControlDisabled() =>
+        ApiResponse.Fail(
+            "task_control_disabled",
+            "Task control is off on this PC. Enable it in FrostLock Settings > LAN & phone.",
+            403);
+
     private static MobileFreezeSnapshot StatusJson(MobileFreezeSnapshot snapshot) => snapshot;
 
     private static bool TryIdempotency(JsonElement root, out string key, out string? error)
@@ -801,11 +899,6 @@ public sealed class MobileControlService : IDisposable
         return result;
     }
 
-    /// <summary>
-    /// Private IPv4 addresses, with the address most likely reachable from a phone first.
-    /// Virtual adapters (Hyper-V, WSL, VPN and container bridges) usually have no default
-    /// gateway and must not be offered as the default pairing endpoint.
-    /// </summary>
     private static List<IPAddress> GetPrivateAddresses()
     {
         var candidates = new List<(IPAddress Address, int Rank)>();
@@ -871,7 +964,6 @@ public sealed class MobileControlService : IDisposable
         }
         catch
         {
-            // Fail closed if Windows cannot report the active firewall profile.
             return true;
         }
         finally

@@ -44,7 +44,6 @@ public static class StartupService
         }
         catch
         {
-            // Non-fatal: startup registration is a convenience only.
         }
     }
 }

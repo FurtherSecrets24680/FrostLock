@@ -15,10 +15,6 @@ public enum FreezeMode
     /// <summary>Win32 BlockInput freeze at the OS level. Requires administrator rights.</summary>
     Hard,
 
-    /// <summary>
-    /// Soft lock: input stays live, system keys are swallowed, and the lock screen is released
-    /// only by the PIN. No timer is required, and no unlock hotkey is honoured.
-    /// </summary>
     Pin,
 
     /// <summary>Watch a selected removable drive: insertion freezes; removal releases.</summary>
@@ -115,11 +111,13 @@ public sealed class AppSettings
     /// <summary>How long the unlock shortcut must be held, in milliseconds. 0 releases instantly.</summary>
     public int UnlockHoldMs { get; set; } = 1200;
 
-    /// <summary>
-    /// Absolute ceiling in seconds even for an "until I unlock" freeze. 0 (the default)
-    /// disables the cap, so an indefinite freeze really is indefinite.
-    /// </summary>
     public int SafetyMaxSeconds { get; set; }
+
+    /// <summary>Start a freeze after the desktop has been idle for <see cref="IdleFreezeMinutes"/>.</summary>
+    public bool IdleFreezeEnabled { get; set; }
+
+    /// <summary>Minutes without keyboard or mouse input before an idle freeze starts.</summary>
+    public int IdleFreezeMinutes { get; set; } = 10;
 
     /// <summary>Base64 PBKDF2 salt for <see cref="PinHash"/>. Null when no PIN is configured.</summary>
     public string? PinSalt { get; set; }
@@ -127,14 +125,10 @@ public sealed class AppSettings
     /// <summary>Base64 PBKDF2-SHA256 hash of the PIN. Null when no PIN is configured.</summary>
     public string? PinHash { get; set; }
 
-    // Lockout state persists across restarts.
     public int PinFailures { get; set; }
     public DateTime? PinLockedUntilUtc { get; set; }
     public int PinLockoutLevel { get; set; }
 
-    /// <summary>
-    /// Optional emergency phrase for the PIN lock screen.
-    /// </summary>
     public string? PanicSalt { get; set; }
     public string? PanicHash { get; set; }
     public int PanicFailures { get; set; }
@@ -159,6 +153,9 @@ public sealed class AppSettings
     /// <summary>A paired phone may release PIN mode only when the owner opts in here.</summary>
     public bool MobilePinReleaseAllowed { get; set; }
 
+    /// <summary>A paired phone may list, end, and start processes on this PC.</summary>
+    public bool MobileTaskControlEnabled { get; set; }
+
     /// <summary>Allow Mobile Unlock on Windows Public profiles. Only for trusted test networks.</summary>
     public bool AllowMobileOnPublicProfileForTesting { get; set; }
 
@@ -167,7 +164,6 @@ public sealed class AppSettings
 
     public List<PairedMobileDevice> MobileDevices { get; set; } = new();
 
-    // Lightweight stats, purely informational.
     public int FreezeCount { get; set; }
     public long TotalFrozenSeconds { get; set; }
     public DateTime? LastFrozenUtc { get; set; }
@@ -262,6 +258,8 @@ public sealed class AppSettings
         ExtendHotkey = other.ExtendHotkey;
         UnlockHoldMs = other.UnlockHoldMs;
         SafetyMaxSeconds = other.SafetyMaxSeconds;
+        IdleFreezeEnabled = other.IdleFreezeEnabled;
+        IdleFreezeMinutes = other.IdleFreezeMinutes;
         MinimizeToTray = other.MinimizeToTray;
         CloseToTray = other.CloseToTray;
         StartWithWindows = other.StartWithWindows;
@@ -271,6 +269,7 @@ public sealed class AppSettings
         LockWindowsOnRelease = other.LockWindowsOnRelease;
         MobileControlEnabled = other.MobileControlEnabled;
         MobilePinReleaseAllowed = other.MobilePinReleaseAllowed;
+        MobileTaskControlEnabled = other.MobileTaskControlEnabled;
         MobileServerCertificatePfx = other.MobileServerCertificatePfx;
         MobileDevices = other.MobileDevices?.Select(device => device.Clone()).ToList() ?? new List<PairedMobileDevice>();
         PinSalt = other.PinSalt;

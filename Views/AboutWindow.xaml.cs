@@ -66,11 +66,6 @@ public partial class AboutWindow : Wpf.Ui.Controls.FluentWindow
         ContentRendered += (_, _) => LockSize();
     }
 
-    /// <summary>
-    /// <see cref="Window.ResizeMode"/> stops the user dragging the borders, but Windows can still
-    /// maximize the window (Win+Up) or snap it via the shell. Clamp the size to whatever the
-    /// content needed so those commands leave it alone.
-    /// </summary>
     private void LockSize()
     {
         if (_sizeLocked) return;
@@ -119,7 +114,6 @@ public partial class AboutWindow : Wpf.Ui.Controls.FluentWindow
 
     private void Source_RequestNavigate(object sender, RequestNavigateEventArgs e)
     {
-        // Handled here so the window never tries to navigate itself to the URL.
         e.Handled = true;
 
         try
@@ -263,13 +257,8 @@ public partial class AboutWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
-    /// <summary>
-    /// Starts the downloaded installer and closes FrostLock so the installer can replace it.
-    /// Inno Setup's CloseApplications knows how to wait for the mutex to go away.
-    /// </summary>
     private void StartInstaller(string path)
     {
-        // Exiting must never be a way past an active freeze, especially a PIN lock.
         if (System.Windows.Application.Current is App { Controller.IsActive: true })
         {
             UpdateProgress.Visibility = Visibility.Hidden;

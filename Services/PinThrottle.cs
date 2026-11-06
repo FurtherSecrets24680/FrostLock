@@ -7,16 +7,10 @@ public enum PinAttemptResult
     LockedOut
 }
 
-/// <summary>
-/// Applies escalating cooldowns after repeated incorrect secret entries.
-/// </summary>
 public sealed class PinThrottle
 {
     private const int MaxAttempts = 5;
 
-    /// <summary>
-    /// Cooldowns for consecutive rounds of wrong entries.
-    /// </summary>
     private static readonly TimeSpan[] Cooldowns =
     {
         TimeSpan.FromSeconds(30),
@@ -41,10 +35,6 @@ public sealed class PinThrottle
     private int _level;
     private DateTime _lockedUntilUtc = DateTime.MinValue;
 
-    /// <summary>
-    /// Starts from persisted state so a restart or a reboot does not clear the cooldown or
-    /// drop the escalation back to the shortest wait.
-    /// </summary>
     public PinThrottle(int failures = 0, DateTime? lockedUntilUtc = null, Action? changed = null,
         int lockoutLevel = 0)
     {

@@ -33,7 +33,6 @@ public static class UpdateService
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
 
-            // The GitHub API rejects requests without a User-Agent.
             http.DefaultRequestHeaders.UserAgent.ParseAdd("FrostLock");
             http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
 
@@ -68,10 +67,6 @@ public static class UpdateService
         }
     }
 
-    /// <summary>
-    /// Downloads a release asset while computing its SHA-256, then checks the size and PE
-    /// signature. A missing or malformed expected hash fails closed.
-    /// </summary>
     public static async Task DownloadAsync(
         string url,
         string destination,
@@ -155,7 +150,6 @@ public static class UpdateService
             if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            // The Inno Setup output is named FrostLock-<version>-Setup.exe.
             if (!name.Contains("Setup", StringComparison.OrdinalIgnoreCase))
                 continue;
 

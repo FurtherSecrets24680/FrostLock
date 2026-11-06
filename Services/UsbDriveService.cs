@@ -12,11 +12,6 @@ public sealed record UsbDriveOption(string RootPath, string VolumeLabel, string 
         $"{RootPath.TrimEnd('\\')} {VolumeLabel} (serial {VolumeSerial})";
 }
 
-/// <summary>
-/// Watches volume arrival/removal broadcasts on FrostLock's main HWND. It identifies a
-/// selected volume by its filesystem serial, not its drive letter. This is a convenience
-/// trigger only: volume serials are not cryptographic credentials and can be copied.
-/// </summary>
 public sealed class UsbDriveService : IDisposable
 {
     private const int WM_DEVICECHANGE = 0x0219;
@@ -48,7 +43,6 @@ public sealed class UsbDriveService : IDisposable
             }
             catch
             {
-                // A removable drive can disappear between enumeration and inspection.
             }
         }
 
@@ -62,8 +56,6 @@ public sealed class UsbDriveService : IDisposable
         _source?.AddHook(WndProc);
     }
 
-    /// <summary>Updates the configured trigger. Existing presence only seeds state; it does
-    /// not immediately start a freeze when settings are saved or FrostLock launches.</summary>
     public void Configure(bool enabled, string? serial)
     {
         _enabled = enabled;
@@ -104,7 +96,6 @@ public sealed class UsbDriveService : IDisposable
         }
         catch
         {
-            // Ignore malformed or unsupported device notifications.
         }
 
         return IntPtr.Zero;
@@ -119,7 +110,6 @@ public sealed class UsbDriveService : IDisposable
             var letter = (char)('A' + index);
             var root = $"{letter}:\\";
 
-            // Windows may broadcast arrival just before the mount is queryable.
             if (!TryReadVolume(root, out var option)) continue;
             Cache(option);
 
@@ -145,8 +135,6 @@ public sealed class UsbDriveService : IDisposable
                     StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            // If another copy of the same volume serial remains mounted, keep the trigger
-            // present instead of releasing on removal of just one copy.
             _targetPresent = _mounted.Values.Any(d => string.Equals(
                 d.VolumeSerial, _targetSerial, StringComparison.OrdinalIgnoreCase));
 

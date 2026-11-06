@@ -4,11 +4,6 @@ using FrostLock.Interop;
 
 namespace FrostLock.Services;
 
-/// <summary>
-/// Global low-level keyboard/mouse blocker. Runs without administrator rights and can
-/// selectively swallow keys, swallow the mouse, and detect an unlock combo even while
-/// everything else is blocked.
-/// </summary>
 public sealed class HookBlocker : IDisposable
 {
     public event Action? UnlockComboPressed;
@@ -65,8 +60,6 @@ public sealed class HookBlocker : IDisposable
 
         var module = Native.GetModuleHandleW(null);
 
-        // The keyboard hook also carries the unlock and extend combos, so it is needed
-        // even when nothing is being blocked.
         if (BlockAllKeys || BlockSystemKeys || UnlockBinding.IsValid || ExtendBinding.IsValid)
         {
             _keyboardProc = KeyboardProc;
@@ -102,7 +95,6 @@ public sealed class HookBlocker : IDisposable
             bool isDown = msg is Native.WM_KEYDOWN or Native.WM_SYSKEYDOWN;
             bool isUp = msg is Native.WM_KEYUP or Native.WM_SYSKEYUP;
 
-            // Ignore key repeat so holding the combo extends only once.
             bool repeated = isDown && _down.Contains(vk);
 
             if (isDown) _down.Add(vk);
@@ -113,8 +105,6 @@ public sealed class HookBlocker : IDisposable
             bool shift = _down.Contains(VK_SHIFT) || _down.Contains(VK_LSHIFT) || _down.Contains(VK_RSHIFT);
             bool win = _down.Contains(VK_LWIN) || _down.Contains(VK_RWIN);
 
-            // The unlock combo is honoured above everything else. With a hold time set,
-            // the timer only fires while every key of the combo is still down.
             bool comboHeld = UnlockBinding.IsValid
                              && _down.Contains(UnlockBinding.VirtualKey)
                              && UnlockBinding.Matches(ctrl, alt, shift, win, UnlockBinding.VirtualKey);
@@ -146,7 +136,6 @@ public sealed class HookBlocker : IDisposable
                 try { _holdTimer?.Change(Timeout.Infinite, Timeout.Infinite); } catch { /* ignore */ }
             }
 
-            // Swallow the extend combo even when every other key is blocked.
             bool extendHeld = ExtendBinding.IsValid
                               && _down.Contains(ExtendBinding.VirtualKey)
                               && ExtendBinding.Matches(ctrl, alt, shift, win, ExtendBinding.VirtualKey);

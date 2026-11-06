@@ -18,6 +18,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private readonly HotkeyService _hotkeys = new();
     private readonly UsbDriveService _usbDrive = new();
+    private readonly IdleMonitorService _idle = new();
     private TrayService? _tray;
     private SettingsWindow? _settingsWindow;
     private AboutWindow? _aboutWindow;
@@ -44,8 +45,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             ReleaseMobileFreeze, ApproveMobilePairing);
     }
 
-    // Lifecycle
-
     public void Initialize(bool startHidden)
     {
         if (_initialized) return;
@@ -62,6 +61,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _hotkeys.ExtendPressed += ExtendFreeze;
         _usbDrive.Attach(this);
         _usbDrive.TargetPresenceChanged += OnUsbTargetPresenceChanged;
+
+        _idle.IdleDetected += OnIdleDetected;
+        _idle.Start();
 
         _tray = new TrayService();
         _tray.FreezeRequested += StartFreeze;
@@ -91,6 +93,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         ApplyHotkeys();
         LoadSettingsToUi();
         UpdateAdminBadge();
+        ApplyIdleMonitor();
 
         if (_settings.MobileControlEnabled) _ = _mobile.StartAsync();
 
@@ -236,7 +239,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     {
         if (_controller.RequestRelease(FreezeEndReason.UserUnlocked)) return;
 
-        // A PIN freeze only opens from the lock screen.
         _tray?.ShowBalloon("PIN lock is active", "Enter the PIN on the lock screen to unlock.");
     }
 
@@ -258,11 +260,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _usbDrive.Configure(false, null);
         _usbDrive.Dispose();
         _hotkeys.Dispose();
+        _idle.Dispose();
         _untilPreviewTimer?.Stop();
         _untilPreviewTimer = null;
     }
-
-    // Freeze control
 
     /// <summary>Set from the command line; applies to the next freeze, then clears.</summary>
     public FreezeMode? ModeOverride { get; set; }
@@ -343,6 +344,31 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             _controller.DurationOverrideSeconds = null;
     }
 
+    private void ApplyIdleMonitor()
+    {
+        var mode = _settings.Mode;
+        var eligible = !_usbWatching
+                       && (mode is FreezeMode.Gentle or FreezeMode.Strict
+                           || mode == FreezeMode.Pin && _settings.HasPin);
+
+        _idle.Configure(_settings.IdleFreezeEnabled && eligible,
+            TimeSpan.FromMinutes(Math.Clamp(_settings.IdleFreezeMinutes, 1, 1440)));
+    }
+
+    private void OnIdleDetected()
+    {
+        if (_controller.IsActive || _usbWatching || _exiting) return;
+
+        var mode = _settings.Mode;
+        if (mode is not (FreezeMode.Gentle or FreezeMode.Strict or FreezeMode.Pin)) return;
+        if (mode == FreezeMode.Pin && !_settings.HasPin) return;
+
+        StartFreezeCore(fromUsb: false);
+        if (!_controller.IsActive) _tray?.ShowBalloon(
+            "Idle freeze did not start",
+            "FrostLock could not take input after the idle timeout.");
+    }
+
     private void StartUsbWatching()
     {
         if (UsbDriveBox.SelectedItem is not UsbDriveOption selected)
@@ -363,6 +389,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _tray?.SetUsbWatching(true);
         UpdateUsbWatchStatus();
         UpdateStatusIdle();
+        ApplyIdleMonitor();
     }
 
     private void StopUsbWatching()
@@ -388,6 +415,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         UsbWatchStatus.Text = "USB watching stopped.";
         UpdateStatusIdle();
+        ApplyIdleMonitor();
     }
 
     private void RefreshUsbDrives_Click(object sender, RoutedEventArgs e) => RefreshUsbDrives();
@@ -470,7 +498,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         }
         catch (Win32Exception)
         {
-            // The user dismissed the UAC prompt.
         }
         catch (Exception ex)
         {
@@ -495,10 +522,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         System.Windows.Application.Current.Shutdown();
     }
 
-    // Controller events
-
     private void OnFreezeStarted(object? sender, FreezeStartedEventArgs e)
     {
+        _idle.Configure(false, _idle.Threshold);
+
         _wasVisibleBeforeFreeze = IsVisible;
         if (IsVisible) Hide();
 
@@ -517,6 +544,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     private void OnFreezeEnded(object? sender, FreezeEndedEventArgs e)
     {
         _usbFreezeActive = false;
+        ApplyIdleMonitor();
         _tray?.SetFrozen(false);
         _tray?.SetUsbWatching(_usbWatching);
         UpdateStatusIdle();
@@ -562,8 +590,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _tray?.SetFrozen(true, !state.RequiresPin);
         _tray?.SetTooltip($"FrostLock: {state.ModeLabel}. {StatusDetail.Text}");
     }
-
-    // UI wiring
 
     private void WireOptionToggles()
     {
@@ -895,14 +921,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         return $"{(int)value.TotalSeconds} sec";
     }
 
-    // Settings plumbing
-
     /// <summary>Persists settings and re-applies side effects. Returns a hotkey error, if any.</summary>
     private string? SaveSettings()
     {
         SettingsService.Save(_settings);
         StartupService.Apply(_settings.StartWithWindows, _settings.StartMinimized);
         SyncMobileControl();
+        ApplyIdleMonitor();
 
         UpdateHotkeyLabels();
 
@@ -914,9 +939,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         _hotkeys.UnregisterStart();
         _hotkeys.UnregisterExtend();
 
-        // While the settings window is open the global start hotkey is released, so a
-        // combination can be recorded without launching a freeze in the middle of it.
-        // USB key mode is controlled by the selected drive and Stop watching instead.
         if (_settingsHotkeysSuspended || _settings.Mode == FreezeMode.UsbKey) return null;
 
         if (Hotkeys.TryParse(_settings.StartHotkey, out var binding) && binding.IsValid)
@@ -1111,8 +1133,6 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         window.Show();
         window.ShowSection(section);
     }
-
-    // Window commands
 
     private void Freeze_Click(object sender, RoutedEventArgs e) => StartFreeze();
 

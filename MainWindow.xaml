@@ -66,7 +66,6 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- Current state -->
                 <Border Style="{StaticResource CardPanel}" Margin="0,16,0,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -424,7 +423,6 @@
                     </StackPanel>
                 </Border>
 
-                <!-- At a glance -->
                 <StackPanel Orientation="Horizontal" Margin="2,18,0,8">
                     <ui:SymbolIcon Symbol="Info24" Style="{StaticResource SectionIcon}" />
                     <TextBlock Text="At a glance" Style="{StaticResource SectionHeader}" Margin="0" />

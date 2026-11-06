@@ -10,11 +10,6 @@ public enum HardReleaseReason
     Watchdog
 }
 
-/// <summary>
-/// Wraps Win32 <c>BlockInput</c>. The block and the matching release both happen on a
-/// dedicated thread, because only the thread that blocked input may unblock it.
-/// Requires administrator rights.
-/// </summary>
 public sealed class HardBlocker : IDisposable
 {
     private static readonly object ActiveLock = new();
@@ -33,11 +28,6 @@ public sealed class HardBlocker : IDisposable
     public bool Succeeded { get; private set; }
     public bool Attempted { get; private set; }
 
-    /// <summary>
-    /// Starts the block. The dedicated thread releases on its own at <paramref name="releaseAtUtc"/>
-    /// or when the UI thread stops sending heartbeats for <paramref name="watchdogAfter"/>,
-    /// so a hung dispatcher cannot leave input blocked forever.
-    /// </summary>
     public bool Start(DateTime? releaseAtUtc, TimeSpan watchdogAfter)
     {
         _releaseAtUtc = releaseAtUtc;
@@ -88,7 +78,6 @@ public sealed class HardBlocker : IDisposable
             }
             catch
             {
-                // A failure here must still allow the process to exit.
             }
             finally
             {

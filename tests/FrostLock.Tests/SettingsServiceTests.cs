@@ -18,6 +18,8 @@ public class SettingsServiceTests
             Assert.False(settings.HasPin);
             Assert.False(settings.MobileControlEnabled);
             Assert.False(settings.MobilePinReleaseAllowed);
+            Assert.False(settings.IdleFreezeEnabled);
+            Assert.Equal(10, settings.IdleFreezeMinutes);
             Assert.Equal(6, settings.SettingsVersion);
         }
         finally
@@ -40,6 +42,8 @@ public class SettingsServiceTests
                 ExtendHotkey = "Ctrl+Alt+X",
                 ArmSeconds = 0,
                 LockScreenMessage = "Back soon",
+                IdleFreezeEnabled = true,
+                IdleFreezeMinutes = 25,
                 MobileControlEnabled = true,
                 AllowMobileOnPublicProfileForTesting = true,
                 MobileServerCertificatePfx = Convert.ToBase64String([1, 2, 3, 4]),
@@ -64,6 +68,8 @@ public class SettingsServiceTests
             Assert.Equal("Ctrl+Alt+X", loaded.ExtendHotkey);
             Assert.Equal(0, loaded.ArmSeconds);
             Assert.Equal("Back soon", loaded.LockScreenMessage);
+            Assert.True(loaded.IdleFreezeEnabled);
+            Assert.Equal(25, loaded.IdleFreezeMinutes);
             Assert.True(loaded.MobileControlEnabled);
             Assert.True(loaded.AllowMobileOnPublicProfileForTesting);
             Assert.Equal(original.MobileServerCertificatePfx, loaded.MobileServerCertificatePfx);
@@ -74,6 +80,16 @@ public class SettingsServiceTests
         {
             Delete(directory);
         }
+    }
+
+    [Fact]
+    public void OutOfRangeIdleMinutesAreNormalized()
+    {
+        Assert.True(SettingsService.TryParse("""{ "IdleFreezeMinutes": 0 }""", out var zero, out _));
+        Assert.Equal(10, zero.IdleFreezeMinutes);
+
+        Assert.True(SettingsService.TryParse("""{ "IdleFreezeMinutes": 5000 }""", out var huge, out _));
+        Assert.Equal(1440, huge.IdleFreezeMinutes);
     }
 
     [Fact]

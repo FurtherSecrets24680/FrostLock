@@ -156,8 +156,6 @@
                 </TextBlock>
             </StackPanel>
 
-            <!-- Hidden rather than Collapsed: the space is reserved up front, so showing
-                 the status line never changes the window's height. -->
             <TextBlock x:Name="TxtCopyStatus" Text="Details copied to the clipboard."
                        Style="{StaticResource RowDescription}"
                        Visibility="Hidden"
@@ -169,7 +167,6 @@
                        Visibility="Hidden"
                        Margin="0,12,0,0" />
 
-            <!-- Reserved height: showing progress never resizes the window. -->
             <ProgressBar x:Name="UpdateProgress"
                          Height="6"
                          Minimum="0" Maximum="1"
