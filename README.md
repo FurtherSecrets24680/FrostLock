@@ -13,7 +13,7 @@
   </a>
 </p>
 
-FrostLock takes the keyboard and mouse away for a set period, covers each display with a lock screen, and gives you several ways to end the freeze. This software is inspired by [KeyFreeze](https://keyfreeze.com/).
+FrostLock takes the keyboard and mouse away for a set period, covers each display with a lock screen, and gives you several ways to end the freeze. Inspired by [KeyFreeze](https://keyfreeze.com/).
 
 - WPF on `net10.0-windows`, with light, dark and follow-Windows themes, the Windows accent colour and a Mica backdrop.
 - Five locking modes: Gentle, Strict, Hard, PIN, and USB key.
@@ -31,17 +31,17 @@ FrostLock takes the keyboard and mouse away for a set period, covers each displa
 - On ARM64 Windows, FrostLock runs through x64 emulation.
 
 > [!NOTE]
-> FrostLock still runs on Windows 10, but testing happens on Windows 11. Windows 10 reached end of support in October 2025.
+> FrostLock still runs on Windows 10. The maintainers test on Windows 11. Windows 10 reached end of support in October 2025.
 
 ## Modes
 
 | Mode       | What it does                                                                                                                                                 | Admin?  | How you get out                     |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- | ----------------------------------- |
-| **Gentle** | A light pause: keyboard, mouse, and Windows shortcuts remain available.                                                                                      | No      | Unlock hotkey, Alt+F4, or timer |
-| **Strict** | Uses low-level keyboard and mouse hooks to swallow input. Blocking can be configured.                                                                                 | No      | Unlock hotkey, clickable Unlock if mouse input is live, timer |
+| **Gentle** | Keyboard, mouse, and Windows shortcuts stay available.                                                                                      | No      | Unlock hotkey, Alt+F4, or timer |
+| **Strict** | Uses low-level keyboard and mouse hooks to swallow input. You can configure what it blocks.                                                                                 | No      | Unlock hotkey, clickable Unlock if mouse input is live, timer |
 | **Hard**   | Calls Win32 `BlockInput(true)` on a dedicated worker thread to block input at the OS level.                                                                          | **Yes** | `Ctrl+Alt+Del`, then return to FrostLock and click Unlock; timer, safety cap, or watchdog |
 | **PIN**    | Typing and the mouse still work. System keys are suppressed, and the lock screen asks for your PIN. The unlock hotkey does nothing in this mode.                     | No      | PIN, configured emergency phrase, or timer |
-| **USB key**| Watches a selected removable drive and starts a Strict freeze based on the chosen plug/unplug behavior. The volume serial is a convenience identifier, not authentication. | No | Opposite drive action, unlock hotkey, timer, or **Stop watching**; cannot release PIN mode |
+| **USB key**| Watches a selected removable drive and starts a Strict freeze based on the chosen plug/unplug behavior. The volume serial is only a convenience identifier. | No | Opposite drive action, unlock hotkey, timer, or **Stop watching**; cannot release PIN mode |
 
 > [!IMPORTANT]
 > Hard mode needs administrator rights. If FrostLock is not elevated, it offers to restart through UAC before the freeze begins.
@@ -50,26 +50,26 @@ The **Compare all locking modes** link below the Freeze card opens a comparison 
 
 ## Features
 
-- **Arm delay**, 3 seconds by default: a cancellable countdown on the lock screen before input is blocked. Press Esc or click **Cancel freeze** to abort.
+- **Arm delay**, 3 seconds by default: a cancellable countdown on the lock screen before FrostLock blocks input. Press Esc or click **Cancel freeze** to abort.
 - **Freeze when idle**: optionally start a freeze after a chosen number of minutes without keyboard or mouse input. It uses the selected mode and duration, and the arm delay still lets you cancel. Hard and USB key mode are skipped, since they need a prompt or a drive. Waking the PC, unlocking Windows, or ending a freeze restarts the countdown.
 - **Safety auto-release**: an optional ceiling for an "until I unlock" freeze. Off by default, so that option means what it says.
 - **Freeze until a clock time**: choose a 24-hour time in the Freeze card. If that time has passed today, FrostLock schedules it for tomorrow and previews the deadline.
 - **Extend a running freeze**: click **+5 min** on the lock screen or press `Ctrl+Alt+E`. It also works when the taskbar and Task Manager are inaccessible. Strict mode detects the combo inside its keyboard hook; other supported modes use a global hotkey. Extension is unavailable for indefinite, Hard, and USB-triggered freezes, and never passes the safety cap or 24-hour maximum.
-- **PIN lock**: a salted PBKDF2-SHA256 hash is stored, wrapped with Windows DPAPI so it cannot be lifted from the settings file to another account. Five wrong entries trigger an escalating cooldown (30 seconds, 1, 5, 15, then 60 minutes); the level survives a restart. An optional long emergency phrase gives you a deliberate way back in if you forget the PIN. The PIN and phrase are the only release paths in this mode, including from the tray, CLI and main window.
-- **Configurable hotkeys**: global start and extend hotkeys, plus an unlock combo that the hook watches for, so it works while other input is blocked. The unlock combo can require a hold (1.2 seconds by default) so a stray keypress does not end a freeze. FrostLock's start, unlock and extend hotkeys are disabled in USB key mode; USB-triggered freezes are controlled by the drive and **Stop watching**.
+- **PIN lock**: a salted PBKDF2-SHA256 hash is stored, wrapped with Windows DPAPI so it cannot be lifted from the settings file to another account. Five wrong entries trigger an escalating cooldown (30 seconds, 1, 5, 15, then 60 minutes); the level survives a restart. An optional long emergency phrase gives you a way back in if you forget the PIN. The PIN and phrase are the only release paths in this mode, including from the tray, CLI and main window.
+- **Configurable hotkeys**: global start and extend hotkeys, plus an unlock combo that the hook watches for, so it works while other input is blocked. The unlock combo can require a hold (1.2 seconds by default) so a stray keypress does not end a freeze. FrostLock disables its start, unlock and extend hotkeys in USB key mode; USB-triggered freezes are controlled by the drive and **Stop watching**.
 - **Lock screen style**: a solid cover (default), a see-through dim veil, or none at all (input-only), with an optional message line and an optional background image. PIN mode always shows a cover.
-- **Lock Windows when the freeze ends**: an opt-in switch that calls `LockWorkStation()` after the freeze, so the desktop is protected when you walk away. Off by default.
-- **USB key mode**: select a removable drive on the main screen and start watching. Choose either **Plug to freeze; unplug to release** or **Plug to release; unplug to freeze**. FrostLock's start, unlock and extend hotkeys are disabled in this mode. Use **Stop watching** in the app or tray to stop the watcher and release a USB-triggered freeze. The volume serial can be copied, so this is a convenience trigger, not secure authentication; USB cannot release PIN mode.
+- **Lock Windows when the freeze ends**: an opt-in switch that calls `LockWorkStation()` after the freeze, so the desktop stays protected when you walk away. Off by default.
+- **USB key mode**: select a removable drive on the main screen and start watching. Choose either **Plug to freeze; unplug to release** or **Plug to release; unplug to freeze**. FrostLock's start, unlock and extend hotkeys are disabled in this mode. Use **Stop watching** in the app or tray to stop the watcher and release a USB-triggered freeze. The volume serial can be copied, so treat this as a convenience trigger. USB cannot release PIN mode.
 - **FrostLock Remote (Android companion)**: check status and start or release eligible freezes from a paired Android phone. Optional **Allow phone task control** adds a process list, task actions, and a command box.
   - Pair with a short-lived QR code in **Settings → LAN & phone**, then approve the phone on the PC. LAN control stays on private networks; Windows Firewall may need an inbound rule for the Private profile. Hard and USB-triggered freezes stay PC-only, and remote PIN release is opt-in.
   - See the [FrostLock Remote GitHub page](https://github.com/FurtherSecrets24680/Frostlock-Remote) for the full feature list, download links, pairing steps, and security details.
 - **Multi-monitor**: one lock screen per display, or the primary display only.
-- **Tray menu**: quick freeze for 5, 15, 30 or 60 minutes, 2 or 4 hours, or until unlock, plus freeze now, stop USB watching, open, settings and exit. Exit is disabled during a PIN lock.
+- **Tray menu**: quick freeze for 5, 15, 30 or 60 minutes, 2 or 4 hours, or until unlock, plus freeze now, stop USB watching, open, settings and exit. FrostLock disables Exit during a PIN lock.
 - **Start with Windows**, start hidden, minimise or close to tray.
 - **Display stays awake** while frozen.
 - **Clock**: a wall clock, plus the projected unlock time for timed freezes. Toggleable.
 - **Theme**: light, dark, or follow Windows; the System choice follows live theme switches.
-- **Update check**: a quiet check against GitHub releases on start (on by default). About verifies the installer against GitHub's published SHA-256 digest as it downloads, then checks its size and PE header before launching it. If the release has no valid digest, auto-install is refused.
+- **Update check**: checks GitHub releases on start without interrupting you (on by default). About verifies the installer against GitHub's published SHA-256 digest as it downloads, then checks its size and PE header before launching it. If the release has no valid digest, auto-install is refused.
 - **Freeze duration**: presets from 30 seconds to 15 minutes, an indefinite option, a custom timer from 1 minute to 24 hours, or a selected clock time.
 - **Statistics**: count and total time for completed freezes. An aborted start or a shutdown does not count.
 - **Crash guard**: an unhandled exception or a stalled UI thread releases the input block instead of leaving the keyboard and mouse dead.
@@ -83,7 +83,7 @@ The **Compare all locking modes** link below the Freeze card opens a comparison 
 
 The control panel is a `FluentWindow` with an extended title bar, Mica backdrop and rounded corners. Its **At a glance** card shows the hotkeys, lifetime statistics, and current elevation state; click **Hotkeys** to open Settings at the full Hotkeys card, with the unlock field focused.
 
-Settings sit in Windows Settings-style cards with Fluent toggles and number boxes. **Start hidden in the tray** is off by default. Choose a duration, custom length, or **Until a time…** from the Freeze card; the time picker uses a 24-hour clock and previews the next occurrence. The lock screen stays deliberately dark in every theme: a clock in the header, a large countdown, a thin progress bar, an optional message, and mode-appropriate release guidance. Hard mode keeps its escape route off the lock screen; its tooltip explains the route before a freeze starts. A timed freeze also says when it will end. For eligible timed freezes, the lock screen offers **+5 min** when mouse input is available and displays the extend shortcut.
+Settings sit in Windows Settings-style cards with Fluent toggles and number boxes. **Start hidden in the tray** is off by default. Choose a duration, custom length, or **Until a time…** from the Freeze card; the time picker uses a 24-hour clock and previews the next occurrence. The lock screen stays dark in every theme: a clock in the header, a large countdown, a thin progress bar, an optional message, and mode-appropriate release guidance. Hard mode keeps its escape route off the lock screen; its tooltip explains the route before a freeze starts. A timed freeze also says when it will end. For eligible timed freezes, the lock screen offers **+5 min** when mouse input is available and displays the extend shortcut.
 
 ## Hotkeys
 
@@ -110,7 +110,7 @@ Preferences are grouped into seven cards, and each change applies and saves stra
 | **Hotkeys** | Unlock combo, global start and extend hotkeys, and the hold-to-unlock time. |
 | **Configuration** | Edit the JSON directly, export a backup, import one, or open the settings folder. |
 
-The Configuration card shows the settings file path. The stored PIN and emergency phrase hashes are DPAPI-wrapped, so the file cannot be copied to another Windows account and reused. Exports deliberately omit both secrets; importing a backup keeps the PIN and phrase already set on this PC and takes the lifetime statistics from the file. The chosen freeze-until time and extend hotkey are saved with the other preferences.
+The Configuration card shows the settings file path. The stored PIN and emergency phrase hashes are DPAPI-wrapped, so the file cannot be copied to another Windows account and reused. Exports omit both secrets; importing a backup keeps the PIN and phrase already set on this PC and takes the lifetime statistics from the file. The chosen freeze-until time and extend hotkey are saved with the other preferences.
 
 ## Command line
 
@@ -231,7 +231,7 @@ FrostLock/
 ## Limitations
 
 > [!CAUTION]
-> FrostLock is a speed bump. A local administrator, `Ctrl+Alt+Del`, Task Manager on the secure desktop, safe mode or physical access each end a freeze.
+> A local administrator, `Ctrl+Alt+Del`, Task Manager on the secure desktop, safe mode, or physical access can each end a freeze.
 
 - **Windows reserves `Ctrl+Alt+Del`** as the secure attention sequence, so a user-mode app cannot intercept it. That is what makes Hard mode escapable.
 - **Hard mode ignores FrostLock's own hotkey.** `BlockInput` freezes the input queue at the OS level, so the app can listen but not act. Release with the timer, the safety cap, or `Ctrl+Alt+Del`, which makes Windows drop the block.
@@ -241,7 +241,7 @@ FrostLock/
 - **USB key mode is not a security key.** A removable drive is matched by its filesystem volume serial, which can be copied or spoofed. It cannot release PIN mode.
 - **A non-elevated hook cannot cover elevated apps.** Send that input to Hard mode, which runs elevated.
 - **Hard mode, "until I unlock", and no safety cap** leaves `Ctrl+Alt+Del` as the only exit, as with [KeyFreeze](https://keyfreeze.com/).
-- **Updates are not code-signed yet.** The updater checks the downloaded Setup asset against the SHA-256 digest published by GitHub, along with its size and PE header. A digest helps detect a corrupted or substituted download, but it does not protect against a compromised GitHub account or release; Authenticode signing is the stronger future control.
+- **Updates are not code-signed yet.** The updater checks the downloaded Setup asset against the SHA-256 digest published by GitHub, along with its size and PE header. A digest helps detect a corrupted or substituted download, but it does not protect against a compromised GitHub account or release; Authenticode signing would close that gap.
 
 ## Credits & inspiration
 
